@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- CONFIGURACIÓN PWA (Para que parezca App) -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#4338ca">
+    <title>Mis Pagos</title>
+
+    <!-- ICONO INTEGRADO (Base64) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' style='background:%234338ca;border-radius:100px'><path fill='white' d='M32 448c0 17.7 14.3 32 32 32h384c17.7 0 32-14.3 32-32V160H32v288zm160-212c0-6.6 5.4-12 12-12h104c6.6 0 12 5.4 12 12v8c0 6.6-5.4 12-12 12H204c-6.6 0-12-5.4-12-12v-8zM480 32H32C14.3 32 0 46.3 0 64v48c0 8.8 7.2 16 16 16h480c8.8 0 16-7.2 16-16V64c0-17.7-14.3-32-32-32z'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' style='background:%234338ca'><path fill='white' d='M32 448c0 17.7 14.3 32 32 32h384c17.7 0 32-14.3 32-32V160H32v288zm160-212c0-6.6 5.4-12 12-12h104c6.6 0 12 5.4 12 12v8c0 6.6-5.4 12-12 12H204c-6.6 0-12-5.4-12-12v-8zM480 32H32C14.3 32 0 46.3 0 64v48c0 8.8 7.2 16 16 16h480c8.8 0 16-7.2 16-16V64c0-17.7-14.3-32-32-32z'/></svg>">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { background-color: #f3f4f6; font-family: sans-serif; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 16px; margin-bottom: 16px; }
+        .paid-item { opacity: 0.6; background-color: #f0fdf4; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="pb-32 select-none">
+
+    <!-- HEADER -->
+    <div class="bg-indigo-700 text-white rounded-b-3xl shadow-lg sticky top-0 z-20 pt-safe">
+        <div class="flex justify-between items-center p-4 border-b border-indigo-600">
+            <button onclick="changeMonth(-1)" class="p-2 hover:bg-indigo-600 rounded-full"><i class="fas fa-chevron-left"></i></button>
+            <h2 id="currentMonthLabel" class="text-xl font-bold capitalize"></h2>
+            <button onclick="changeMonth(1)" class="p-2 hover:bg-indigo-600 rounded-full"><i class="fas fa-chevron-right"></i></button>
+        </div>
+
+        <div class="p-6 pt-4">
+            <div class="flex justify-between items-end">
+                <div>
+                    <p class="text-indigo-200 text-sm font-medium">Resta Pagar</p>
+                    <p class="text-4xl font-bold tracking-tight" id="totalRemaining">$0</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-indigo-200 text-xs">Total Gastado</p>
+                    <p class="text-xl font-semibold opacity-90" id="totalSpent">$0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 max-w-md mx-auto fade-in" id="mainContainer">
+
+        <!-- NAVEGACIÓN -->
+        <div class="flex bg-gray-200 p-1 rounded-xl mb-6">
+            <button onclick="showSection('list')" id="btn-list" class="flex-1 py-2 rounded-lg text-sm font-bold bg-white shadow text-indigo-700 transition-all">Pagos</button>
+            <button onclick="showSection('add')" id="btn-add" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all">Servicios</button>
+            <button onclick="showSection('stats')" id="btn-stats" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all">Gráficos</button>
+        </div>
+
+        <!-- LISTA DE PAGOS -->
+        <div id="section-list">
+            <div class="w-full bg-gray-300 rounded-full h-2.5 mb-6 overflow-hidden">
+                <div id="progressBar" class="bg-green-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+
+            <div id="emptyState" class="hidden text-center py-10 opacity-50">
+                <i class="fas fa-check-circle text-4xl mb-2"></i>
+                <p>Todo al día</p>
+            </div>
+
+            <div id="pendingList"></div>
+            
+            <div id="completedHeader" class="hidden mt-8 mb-2 flex items-center gap-2">
+                <div class="h-px bg-gray-300 flex-1"></div>
+                <span class="text-xs text-gray-400 font-bold uppercase">Pagados / Archivados</span>
+                <div class="h-px bg-gray-300 flex-1"></div>
+            </div>
+            <div id="completedList"></div>
+        </div>
+
+        <!-- AGREGAR / GESTIONAR SERVICIOS -->
+        <div id="section-add" class="hidden">
+            <!-- Formulario -->
+            <div class="card border-l-4 border-indigo-500 mb-6">
+                <div class="flex justify-between items-center mb-1">
+                    <h3 class="text-lg font-bold text-gray-800" id="formTitle">Nuevo Servicio</h3>
+                    <button onclick="resetForm()" id="cancelEditBtn" class="hidden text-xs text-red-500 font-bold border border-red-200 px-2 py-1 rounded">Cancelar</button>
+                </div>
+                <p class="text-xs text-gray-500 mb-4">Se repetirá mensualmente.</p>
+                
+                <form id="addForm" onsubmit="handleServiceSubmit(event)">
+                    <input type="hidden" id="editingId" value="">
+                    
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nombre</label>
+                        <input type="text" id="serviceName" placeholder="Ej: Visa, Luz..." class="w-full rounded-lg bg-gray-50 p-3 border outline-none focus:border-indigo-500" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Día Vencimiento</label>
+                        <input type="number" id="serviceDay" placeholder="1-31" min="1" max="31" class="w-full rounded-lg bg-gray-50 p-3 border outline-none focus:border-indigo-500" required>
+                    </div>
+                    <div class="mb-6 flex items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
+                        <input type="checkbox" id="isCreditCard" class="h-5 w-5 text-indigo-600 rounded">
+                        <label for="isCreditCard" class="ml-2 text-sm text-gray-700 font-medium">Es Tarjeta de Crédito</label>
+                    </div>
+                    <button type="submit" id="submitBtn" class="w-full bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform">Guardar Servicio</button>
+                </form>
+            </div>
+
+            <!-- Lista de Servicios Activos -->
+            <h3 class="font-bold text-gray-700 mb-3 px-1">Mis Servicios Activos</h3>
+            <div id="servicesList" class="space-y-3 pb-8"></div>
+
+            <!-- SECCIÓN DE BACKUP -->
+            <div class="mt-8 border-t-2 border-dashed border-gray-300 pt-6 pb-6">
+                <h3 class="font-bold text-gray-700 mb-2 px-1"><i class="fas fa-save mr-1"></i> Copia de Seguridad</h3>
+                <div class="bg-white p-4 rounded-xl shadow-sm">
+                    <div class="flex gap-2">
+                        <button onclick="exportData()" class="flex-1 bg-gray-700 text-white py-3 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors">
+                            <i class="fas fa-download mr-1"></i> Exportar
+                        </button>
+                        <button onclick="document.getElementById('importFile').click()" class="flex-1 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors">
+                            <i class="fas fa-upload mr-1"></i> Restaurar
+                        </button>
+                        <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(this)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESTADÍSTICAS -->
+        <div id="section-stats" class="hidden">
+            <div class="card">
+                <h3 class="font-bold mb-4">Evolución de Gastos</h3>
+                <select id="statsSelector" onchange="renderChart()" class="w-full p-3 bg-gray-50 border rounded-lg mb-4 outline-none"></select>
+                <div class="relative h-64"><canvas id="expenseChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let viewedDate = new Date();
+        let services = JSON.parse(localStorage.getItem('services_v3')) || [];
+        let payments = JSON.parse(localStorage.getItem('payments_v3')) || {};
+
+        function getMonthKey(date) { return date.toISOString().slice(0, 7); }
+        function getPrevMonthKey(date) {
+            const d = new Date(date);
+            d.setMonth(d.getMonth() - 1);
+            return getMonthKey(d);
+        }
+
+        // --- BACKUP ---
+        function exportData() {
+            const data = { services, payments, appVersion: 'v6', timestamp: new Date().toISOString() };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "mis_pagos_backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if(confirm("¿Reemplazar datos actuales con el archivo?")) {
+                        services = data.services || [];
+                        payments = data.payments || {};
+                        saveData();
+                        alert("Restaurado con éxito.");
+                    }
+                } catch(err) { alert("Archivo inválido."); }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- CORE ---
+        function updateRolloverDebts(currentKey) {
+            const prevKey = getPrevMonthKey(viewedDate);
+            const currentList = payments[currentKey];
+            const prevList = payments[prevKey];
+            if (!currentList || !prevList) return;
+
+            currentList.forEach(item => {
+                const prevItem = prevList.find(p => p.serviceId === item.serviceId);
+                if (prevItem && prevItem.isCreditCard && prevItem.paymentType === 'parcial') {
+                    const debt = (prevItem.totalBill || 0) - (prevItem.amount || 0);
+                    item.previousBalance = Math.max(0, debt);
+                } else {
+                    item.previousBalance = 0;
+                }
+            });
+            localStorage.setItem('payments_v3', JSON.stringify(payments));
+        }
+
+        function ensureMonthData(key) {
+            if (!payments[key]) {
+                payments[key] = [];
+                services.forEach(s => payments[key].push(createPaymentFromService(s, key)));
+                localStorage.setItem('payments_v3', JSON.stringify(payments));
+            }
+        }
+
+        function createPaymentFromService(s, key) {
+            return {
+                id: Date.now() + Math.random(),
+                serviceId: s.id, name: s.name, amount: 0, totalBill: 0, previousBalance: 0,
+                dueDate: `${key}-${String(s.day).padStart(2,'0')}`, paid: false,
+                isCreditCard: s.isCreditCard, paymentType: 'total'
+            };
+        }
+
+        function renderUI() {
+            const key = getMonthKey(viewedDate);
+            document.getElementById('currentMonthLabel').innerText = viewedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+            ensureMonthData(key);
+            updateRolloverDebts(key);
+
+            const list = payments[key];
+            const pendingContainer = document.getElementById('pendingList');
+            const completedContainer = document.getElementById('completedList');
+            
+            pendingContainer.innerHTML = '';
+            completedContainer.innerHTML = '';
+
+            const pendingItems = list.filter(i => !i.paid).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            const completedItems = list.filter(i => i.paid).sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
+
+            pendingItems.forEach(item => pendingContainer.appendChild(createCard(item, key)));
+            if (completedItems.length > 0) {
+                document.getElementById('completedHeader').classList.remove('hidden');
+                completedItems.forEach(item => completedContainer.appendChild(createCard(item, key)));
+            } else {
+                document.getElementById('completedHeader').classList.add('hidden');
+            }
+            document.getElementById('emptyState').className = (list.length === 0 || (pendingItems.length === 0 && completedItems.length === 0)) ? 'text-center py-10 opacity-50' : 'hidden';
+            calculateTotals(list);
+            renderServicesManagement();
+        }
+
+        function createCard(item, key) {
+            const index = payments[key].findIndex(p => p.id === item.id);
+            const isCC = item.isCreditCard;
+            const isPartial = item.paymentType === 'parcial';
+            
+            let prevBalanceHtml = item.previousBalance > 0 ? `<div class="bg-red-50 text-red-700 text-xs p-2 rounded mt-2 flex justify-between items-center border border-red-100"><span><i class="fas fa-history mr-1"></i> Saldo mes anterior:</span><span class="font-bold">$${item.previousBalance.toLocaleString()}</span></div>` : '';
+
+            let amountInputHtml = '';
+            const selectorHtml = isCC ? `<div class="mt-1 flex items-center gap-2 text-xs font-bold ${item.paid ? 'text-gray-400' : 'text-orange-600'}"><i class="fas fa-credit-card"></i><select onchange="updatePaymentType('${key}', ${index}, this.value)" class="bg-transparent border-none outline-none p-0 cursor-pointer"><option value="total" ${!isPartial ? 'selected' : ''}>Pago Total</option><option value="parcial" ${isPartial ? 'selected' : ''}>Pago Parcial</option></select></div>` : '';
+
+            if (isCC && isPartial) {
+                amountInputHtml = `<div class="mt-2 space-y-2">${selectorHtml}<div class="flex justify-between items-center bg-gray-50 p-2 rounded"><span class="text-xs text-gray-500">Total Resumen</span><input type="number" value="${item.totalBill || ''}" placeholder="0" onchange="updateTotalBill('${key}', ${index}, this.value)" class="w-24 text-right bg-transparent border-b border-gray-300 focus:border-indigo-500 font-medium"></div><div class="flex justify-between items-center bg-indigo-50 p-2 rounded border border-indigo-100"><span class="text-xs font-bold text-indigo-700">A Pagar Hoy</span><div class="flex items-center"><span class="text-indigo-600 mr-1">$</span><input type="number" value="${item.amount || ''}" placeholder="0" onchange="updateAmount('${key}', ${index}, this.value)" class="w-24 text-right bg-transparent border-b border-indigo-300 focus:border-indigo-500 font-bold text-lg"></div></div><div class="text-xs text-right text-orange-600 font-medium">Queda debiendo: $${((item.totalBill || 0) - (item.amount || 0)).toLocaleString()}</div></div>`;
+            } else {
+                amountInputHtml = `<div class="mt-${isCC ? '2' : '4'} ${isCC ? '' : 'flex justify-between items-end bg-gray-50 p-2 rounded'}">${isCC ? selectorHtml : '<span class="text-xs font-bold text-gray-400 uppercase mb-1">Importe</span>'}<div class="${isCC ? 'flex justify-between items-end bg-gray-50 p-2 rounded mt-1' : 'flex items-center'}">${isCC ? '<span class="text-xs font-bold text-gray-400 uppercase mb-1">Total Resumen</span>' : ''}<div class="flex items-center ${isCC ? '' : 'ml-auto'}"><span class="text-gray-400 mr-1 text-lg">$</span><input type="number" value="${item.amount > 0 ? item.amount : ''}" placeholder="0" onchange="${isCC ? `updateAmountAndTotal('${key}', ${index}, this.value)` : `updateAmount('${key}', ${index}, this.value)`}" class="text-2xl font-bold w-32 text-right bg-transparent outline-none border-b border-transparent focus:border-indigo-500 p-0 text-gray-700"></div></div></div>`;
+            }
+
+            const card = document.createElement('div');
+            card.className = `card relative overflow-hidden transition-all ${item.paid ? 'paid-item bg-gray-50' : ''}`;
+            const deleteBtn = `<button onclick="deletePayment('${key}', ${index})" class="absolute top-2 right-2 text-gray-300 hover:text-red-400 p-2"><i class="fas fa-trash-alt text-xs"></i></button>`;
+
+            card.innerHTML = `${!item.paid ? deleteBtn : ''}<div class="flex justify-between items-start pr-6"><div class="flex-1"><div class="flex items-center gap-2"><h3 class="font-bold text-gray-800 text-lg leading-tight">${item.name}</h3>${isOverdue(item.dueDate) && !item.paid ? '<span class="text-[10px] bg-red-100 text-red-600 px-1 rounded font-bold">VENCIDO</span>' : ''}</div><div class="flex items-center text-sm text-gray-500 gap-1 mt-1"><i class="far fa-calendar-alt text-xs"></i><input type="date" value="${item.dueDate}" onchange="updateDate('${key}', ${index}, this.value)" class="bg-transparent font-medium border-b border-dashed border-gray-300 focus:border-indigo-500 outline-none w-28 text-xs"></div></div><div onclick="togglePaid('${key}', ${index})" class="cursor-pointer ml-2 flex flex-col items-center justify-center h-10 w-10 rounded-full border-2 ${item.paid ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400 hover:text-green-400'} transition-all shadow-sm"><i class="fas fa-check"></i></div></div>${prevBalanceHtml}${amountInputHtml}`;
+            return card;
+        }
+
+        // --- CRUD ---
+        function renderServicesManagement() {
+            const container = document.getElementById('servicesList');
+            container.innerHTML = '';
+            if (services.length === 0) { container.innerHTML = '<p class="text-sm text-gray-400 text-center italic">No hay servicios.</p>'; return; }
+            services.forEach(s => {
+                const el = document.createElement('div');
+                el.className = 'bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex justify-between items-center';
+                el.innerHTML = `<div><div class="font-bold text-gray-800">${s.name}</div><div class="text-xs text-gray-500">Vence día ${s.day} • ${s.isCreditCard ? '<span class="text-orange-600 font-bold">Tarjeta</span>' : 'Servicio'}</div></div><div class="flex gap-2"><button onclick="startEditService(${s.id})" class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"><i class="fas fa-pencil-alt"></i></button><button onclick="deleteService(${s.id})" class="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100"><i class="fas fa-trash"></i></button></div>`;
+                container.appendChild(el);
+            });
+        }
+
+        function handleServiceSubmit(e) {
+            e.preventDefault();
+            const id = document.getElementById('editingId').value;
+            const name = document.getElementById('serviceName').value;
+            const day = document.getElementById('serviceDay').value;
+            const isCC = document.getElementById('isCreditCard').checked;
+
+            if (id) {
+                const index = services.findIndex(s => s.id == id);
+                if (index !== -1) { services[index] = { ...services[index], name, day, isCreditCard: isCC }; alert('Actualizado'); }
+            } else {
+                const newService = { id: Date.now(), name, day, isCreditCard: isCC };
+                services.push(newService);
+                const key = getMonthKey(viewedDate);
+                if (payments[key]) payments[key].push(createPaymentFromService(newService, key));
+                alert('Creado');
+            }
+            saveData(); resetForm(); if(!id) showSection('list');
+        }
+
+        function startEditService(id) {
+            const s = services.find(x => x.id === id); if(!s) return;
+            document.getElementById('editingId').value = s.id;
+            document.getElementById('serviceName').value = s.name;
+            document.getElementById('serviceDay').value = s.day;
+            document.getElementById('isCreditCard').checked = s.isCreditCard;
+            document.getElementById('formTitle').innerText = "Editar Servicio";
+            document.getElementById('submitBtn').innerText = "Actualizar";
+            document.getElementById('submitBtn').classList.replace('bg-indigo-700', 'bg-green-600');
+            document.getElementById('cancelEditBtn').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function deleteService(id) {
+            if(!confirm('¿Borrar?')) return;
+            services = services.filter(s => s.id !== id);
+            saveData();
+        }
+        function deletePayment(key, index) { if(confirm('¿Borrar este mes?')) { payments[key].splice(index, 1); saveData(); } }
+
+        function resetForm() {
+            document.getElementById('addForm').reset();
+            document.getElementById('editingId').value = "";
+            document.getElementById('formTitle').innerText = "Nuevo Servicio";
+            document.getElementById('submitBtn').innerText = "Guardar";
+            document.getElementById('submitBtn').classList.replace('bg-green-600', 'bg-indigo-700');
+            document.getElementById('cancelEditBtn').classList.add('hidden');
+        }
+
+        // --- HELPERS ---
+        function updateAmountAndTotal(k, i, v) { payments[k][i].amount = parseFloat(v)||0; payments[k][i].totalBill = parseFloat(v)||0; saveData(false); calculateTotals(payments[k]); }
+        function updateAmount(k, i, v) { payments[k][i].amount = parseFloat(v)||0; saveData(false); calculateTotals(payments[k]); }
+        function updateTotalBill(k, i, v) { payments[k][i].totalBill = parseFloat(v)||0; saveData(); }
+        function updatePaymentType(k, i, v) { payments[k][i].paymentType = v; if(v==='total') payments[k][i].amount = payments[k][i].totalBill||0; saveData(); }
+        function updateDate(k, i, v) { payments[k][i].dueDate = v; saveData(); }
+        function togglePaid(k, i) { payments[k][i].paid = !payments[k][i].paid; saveData(); }
+        function isOverdue(ds) { return ds < new Date().toISOString().slice(0, 10); }
+        function changeMonth(s) { viewedDate.setMonth(viewedDate.getMonth() + s); renderUI(); }
+        function calculateTotals(l) {
+            let rem=0, paid=0, tot=0;
+            l.forEach(p => { tot+=p.amount; if(p.paid) paid+=p.amount; else rem+=p.amount; });
+            document.getElementById('totalRemaining').innerText = `$ ${rem.toLocaleString()}`;
+            document.getElementById('totalSpent').innerText = `$ ${paid.toLocaleString()}`;
+            document.getElementById('progressBar').style.width = `${tot===0?0:(paid/tot)*100}%`;
+        }
+        function saveData(render=true) { localStorage.setItem('services_v3', JSON.stringify(services)); localStorage.setItem('payments_v3', JSON.stringify(payments)); if(render) renderUI(); }
+        function showSection(id) {
+            ['list', 'add', 'stats'].forEach(s => { document.getElementById(`section-${s}`).classList.add('hidden'); document.getElementById(`btn-${s}`).className = "flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all"; });
+            document.getElementById(`section-${id}`).classList.remove('hidden');
+            document.getElementById(`btn-${id}`).className = "flex-1 py-2 rounded-lg text-sm font-bold bg-white shadow text-indigo-700 transition-all";
+            if(id === 'stats') loadStatsOptions();
+            if(id === 'add') renderServicesManagement();
+        }
+
+        // --- CHART ---
+        let myChart = null;
+        function loadStatsOptions() {
+            const s = document.getElementById('statsSelector');
+            s.innerHTML = '<option value="">Selecciona item...</option>';
+            services.forEach(i => s.innerHTML += `<option value="${i.id}">${i.name}</option>`);
+        }
+        function renderChart() {
+            const sid = document.getElementById('statsSelector').value;
+            if(!sid) return;
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            const labels=[], data=[];
+            Object.keys(payments).sort().forEach(m => {
+                const item = payments[m].find(p => p.serviceId == sid);
+                if(item) { const [y, mo] = m.split('-'); labels.push(`${mo}/${y.slice(2)}`); data.push(item.amount); }
+            });
+            if(myChart) myChart.destroy();
+            myChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Pagado ($)', data, backgroundColor: '#4f46e5', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false } });
+        }
+
+        renderUI();
+    </script>
+</body>
+</html>
+
+
