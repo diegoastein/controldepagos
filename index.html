@@ -24,13 +24,19 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         
-        /* Loading Overlay */
+        /* Overlays */
         #loadingOverlay, #loginOverlay {
             position: fixed; inset: 0; background: #4338ca; z-index: 100; display: flex; flex-direction: column; justify-content: center; items-center; color: white;
             transition: opacity 0.3s ease;
         }
         .spinner { border: 4px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 4px solid white; width: 40px; height: 40px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Toast de Sincronización */
+        #syncToast {
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #syncToast.hidden-toast { transform: translateY(150%); }
     </style>
 </head>
 <body class="pb-32 select-none">
@@ -38,19 +44,24 @@
     <div id="loginOverlay">
         <div class="text-center p-6">
             <div class="bg-white text-indigo-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-lg">
-                <i class="fas fa-wallet"></i>
+                <i class="fas fa-user-secret"></i>
             </div>
-            <h1 class="text-2xl font-bold mb-2">Mis Pagos Cloud</h1>
-            <p class="text-indigo-200 mb-8 text-sm">Tus finanzas sincronizadas</p>
+            <h1 class="text-2xl font-bold mb-2">Mis Pagos</h1>
+            <p class="text-indigo-200 mb-8 text-sm">Modo Privado / Dispositivo único</p>
             <button id="btnLogin" class="bg-white text-indigo-700 px-6 py-3 rounded-full font-bold shadow-lg hover:bg-gray-100 transition-transform active:scale-95 flex items-center gap-2">
-                <i class="fab fa-google"></i> Ingresar con Google
+                <i class="fas fa-power-off"></i> Ingresar
             </button>
         </div>
     </div>
 
     <div id="loadingOverlay" class="hidden">
         <div class="spinner mb-4"></div>
-        <p class="font-medium animate-pulse">Sincronizando...</p>
+        <p class="font-medium animate-pulse">Conectando...</p>
+    </div>
+
+    <div id="syncToast" class="fixed bottom-6 right-6 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 z-50 hidden-toast border border-gray-700">
+        <i class="fas fa-circle-notch fa-spin text-indigo-400"></i>
+        <span class="text-xs font-bold tracking-wide">Guardando en la nube...</span>
     </div>
 
     <div class="bg-indigo-700 text-white rounded-b-3xl shadow-lg sticky top-0 z-20 pt-safe">
@@ -67,7 +78,6 @@
                     <p class="text-4xl font-bold tracking-tight" id="totalRemaining">$0,00</p>
                 </div>
                 <div class="text-right">
-                    <button id="btnLogout" class="text-xs text-indigo-300 hover:text-white mb-2"><i class="fas fa-sign-out-alt"></i> Salir</button>
                     <p class="text-indigo-200 text-xs">Total Gastado</p>
                     <p class="text-xl font-semibold opacity-90" id="totalSpent">$0,00</p>
                 </div>
@@ -109,7 +119,7 @@
                     <h3 class="text-lg font-bold text-gray-800" id="formTitle">Nuevo Servicio</h3>
                     <button onclick="window.resetForm()" id="cancelEditBtn" class="hidden text-xs text-red-500 font-bold border border-red-200 px-2 py-1 rounded">Cancelar</button>
                 </div>
-                <p class="text-xs text-gray-500 mb-4">Se guardará en la nube automáticamente.</p>
+                <p class="text-xs text-gray-500 mb-4">Se guardará automáticamente en Firebase.</p>
                 
                 <form id="addForm">
                     <input type="hidden" id="editingId" value="">
@@ -144,14 +154,13 @@
     </div>
 
     <script type="module">
-        // Importar funciones de Firebase (versión Modular)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // --- PEGAR TU CONFIGURACIÓN DE FIREBASE ACÁ ---
         const firebaseConfig = {
-             apiKey: "AIzaSyBk-LaNtS15CYhycTl7w6w9xmrVxM88L-M",
+            apiKey: "AIzaSyBk-LaNtS15CYhycTl7w6w9xmrVxM88L-M",
   authDomain: "pagos-6f294.firebaseapp.com",
   projectId: "pagos-6f294",
   storageBucket: "pagos-6f294.firebasestorage.app",
@@ -160,36 +169,30 @@
         };
         // ----------------------------------------------
 
-        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const provider = new GoogleAuthProvider();
 
-        // Variables Globales
         let currentUser = null;
         let viewedDate = new Date();
         let services = [];
-        let payments = {}; // Cache local de los datos de DB
+        let payments = {}; 
         let myChart = null;
         const AR_CURRENCY = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 });
 
-        // Elementos DOM
         const loginOverlay = document.getElementById('loginOverlay');
         const loadingOverlay = document.getElementById('loadingOverlay');
+        const syncToast = document.getElementById('syncToast');
         const btnLogin = document.getElementById('btnLogin');
-        const btnLogout = document.getElementById('btnLogout');
         const addForm = document.getElementById('addForm');
 
         // --- AUTH ---
         btnLogin.addEventListener('click', () => {
-            signInWithPopup(auth, provider).catch(error => {
+            signInAnonymously(auth).catch(error => {
                 console.error("Error login:", error);
-                alert("Error al iniciar sesión: " + error.message);
+                alert("Error al ingresar: " + error.message);
             });
         });
-
-        btnLogout.addEventListener('click', () => signOut(auth));
 
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -209,9 +212,6 @@
 
         // --- FIRESTORE LOGIC ---
         
-        // Estructura DB: users/{uid}/data/main (guardamos todo en un doc para simplificar migración y lectura, 
-        // dado que es poco volumen de datos para una app personal)
-        
         async function loadDataFromFirestore() {
             if (!currentUser) return;
             try {
@@ -223,20 +223,21 @@
                     services = data.services || [];
                     payments = data.payments || {};
                 } else {
-                    // Si es usuario nuevo, iniciamos vacío
                     services = [];
                     payments = {};
-                    await saveToFirestore();
+                    await saveToFirestore(false); // No mostrar toast en inicializacion
                 }
             } catch (e) {
-                console.error("Error cargando datos:", e);
-                alert("Error cargando tus datos. Revisa tu conexión.");
+                console.error("Error cargando:", e);
+                alert("Error de conexión al cargar datos.");
             }
         }
 
-        async function saveToFirestore() {
+        async function saveToFirestore(showToast = true) {
             if (!currentUser) return;
-            // Debounce simple o guardado directo. Para esta app, directo está bien.
+            
+            if (showToast) showSync();
+
             try {
                 const docRef = doc(db, "users", currentUser.uid, "appData", "main");
                 await setDoc(docRef, {
@@ -246,10 +247,20 @@
                 });
             } catch (e) {
                 console.error("Error guardando:", e);
+            } finally {
+                if (showToast) setTimeout(hideSync, 800); // Pequeño delay para que se vea
             }
         }
 
-        // --- FUNCIONES CORE UI (Adaptadas a Window para ser accesibles desde HTML) ---
+        function showSync() {
+            syncToast.classList.remove('hidden-toast');
+        }
+
+        function hideSync() {
+            syncToast.classList.add('hidden-toast');
+        }
+
+        // --- CORE UI ---
 
         window.changeMonth = (s) => {
             viewedDate.setMonth(viewedDate.getMonth() + s);
@@ -276,23 +287,20 @@
             document.getElementById('cancelEditBtn').classList.add('hidden');
         };
 
-        // --- CRUD SERVICIOS Y PAGOS ---
+        // --- CRUD ---
 
         addForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            loadingOverlay.classList.remove('hidden'); // Feedback visual
-
+            // No usamos loadingOverlay completo aca, mejor el toast de sync que es menos intrusivo
             const id = document.getElementById('editingId').value;
             const name = document.getElementById('serviceName').value;
             const day = parseInt(document.getElementById('serviceDay').value);
             const isCC = document.getElementById('isCreditCard').checked;
 
             if (id) {
-                // Editar
                 const index = services.findIndex(s => s.id == id);
                 if (index !== -1) { 
                     services[index] = { ...services[index], name, day, isCreditCard: isCC }; 
-                    // Actualizar pagos existentes
                     Object.keys(payments).forEach(monthKey => {
                         payments[monthKey].forEach(p => {
                             if (p.serviceId == id) {
@@ -307,7 +315,6 @@
                     });
                 }
             } else {
-                // Crear
                 const newService = { id: Date.now(), name, day, isCreditCard: isCC };
                 services.push(newService);
                 const key = getMonthKey(viewedDate);
@@ -316,13 +323,11 @@
 
             await saveToFirestore();
             window.resetForm();
-            loadingOverlay.classList.add('hidden');
             if(!id) window.showSection('list');
             else renderServicesManagement();
             renderUI();
         });
 
-        // Funciones auxiliares expuestas a window
         window.startEditService = (id) => {
             const s = services.find(x => x.id === id); if(!s) return;
             document.getElementById('editingId').value = s.id;
@@ -337,7 +342,7 @@
         };
 
         window.deleteService = async (id) => {
-            if(!confirm('¿Borrar este servicio y dejar de generar futuros pagos?')) return;
+            if(!confirm('¿Borrar este servicio?')) return;
             services = services.filter(s => s.id !== id);
             await saveToFirestore();
             renderServicesManagement();
@@ -351,11 +356,11 @@
             } 
         };
 
-        // --- LOGICA DE PAGOS (IGUAL AL ORIGINAL PERO CON SAVE ASYNC) ---
+        // --- LOGICA DE PAGOS ---
         
         window.updateAmountAndTotal = (k, i, v) => { payments[k][i].amount = parseFloat(v)||0; payments[k][i].totalBill = parseFloat(v)||0; saveToFirestore().then(() => renderUI()); };
         window.updateAmount = (k, i, v) => { payments[k][i].amount = parseFloat(v)||0; saveToFirestore().then(() => renderUI()); };
-        window.updateTotalBill = (k, i, v) => { payments[k][i].totalBill = parseFloat(v)||0; saveToFirestore(); }; // No re-render for focus loss
+        window.updateTotalBill = (k, i, v) => { payments[k][i].totalBill = parseFloat(v)||0; saveToFirestore(); };
         window.updatePaymentType = (k, i, v) => { payments[k][i].paymentType = v; if(v==='total') payments[k][i].amount = payments[k][i].totalBill||0; saveToFirestore().then(() => renderUI()); };
         window.updateDate = (k, i, v) => { payments[k][i].dueDate = v; saveToFirestore(); };
         window.togglePaid = (k, i) => { payments[k][i].paid = !payments[k][i].paid; saveToFirestore().then(() => renderUI()); };
@@ -371,7 +376,6 @@
             if (!payments[key]) {
                 payments[key] = [];
                 services.forEach(s => payments[key].push(createPaymentFromService(s, key)));
-                // No guardamos inmediatamente para no saturar DB con lecturas vacías, se guardará al interactuar
             }
         }
 
@@ -399,7 +403,6 @@
                     item.previousBalance = 0;
                 }
             });
-            // Rollover update doesn't immediate trigger save unless changed, keeping simple
         }
 
         function renderUI() {
@@ -421,8 +424,7 @@
             const pendingItems = list.filter(i => !i.paid).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
             const completedItems = list.filter(i => i.paid).sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
 
-            pendingItems.forEach((item, idx) => {
-                 // Recuperar el índice real en el array original
+            pendingItems.forEach((item) => {
                  const realIndex = list.indexOf(item);
                  pendingContainer.appendChild(createCard(item, key, realIndex));
             });
@@ -439,7 +441,6 @@
             document.getElementById('emptyState').className = (list.length === 0 || (pendingItems.length === 0 && completedItems.length === 0)) ? 'text-center py-10 opacity-50' : 'hidden';
             calculateTotals(list);
             
-            // Si estamos en la tab de servicios, renderizarla
             if(!document.getElementById('section-add').classList.contains('hidden')) {
                 renderServicesManagement();
             }
@@ -502,7 +503,6 @@
             const ctx = document.getElementById('expenseChart').getContext('2d');
             const labels=[], data=[];
             
-            // Ordenar meses
             Object.keys(payments).sort().forEach(m => {
                 const item = payments[m].find(p => p.serviceId == sid);
                 if(item && item.amount > 0) { 
