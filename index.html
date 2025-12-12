@@ -671,6 +671,56 @@
             setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
         }
 
+// --- HERRAMIENTA DE LIMPIEZA DE EMERGENCIA ---
+        // Pegar esto al final del script type="module", antes de cerrar la etiqueta </script>
+        window.borrarDuplicadosInterno = async () => {
+            if (!currentUser) return alert("Espera a que aparezca 'En Línea' arriba.");
+            if (!links || links.length === 0) return alert("Todavía no se cargaron los datos. Espera unos segundos.");
+
+            const totalAntes = links.length;
+            const vistos = new Set();
+            const aBorrar = [];
+
+            // 1. Identificar duplicados usando los datos internos (no el HTML)
+            console.log("Analizando base de datos interna...");
+            
+            links.forEach(link => {
+                // Creamos una "huella digital" del link (URL + Título)
+                // Convertimos a minúsculas para que "Google" y "google" sean lo mismo
+                const firma = (link.url.trim() + "|" + link.title.trim()).toLowerCase();
+
+                if (vistos.has(firma)) {
+                    // Si ya vimos esta firma, este es un duplicado -> A LA LISTA DE BORRAR
+                    aBorrar.push(link);
+                } else {
+                    // Si es nuevo, lo registramos como "el original"
+                    vistos.add(firma);
+                }
+            });
+
+            if (aBorrar.length === 0) return alert("¡Genial! No hay duplicados en la base de datos.");
+
+            if (!confirm(`DETECTADOS ${aBorrar.length} DUPLICADOS (de ${totalAntes} totales).\n\n¿Quieres eliminarlos definitivamente de la base de datos?`)) return;
+
+            // 2. Borrar directamente en Firebase
+            console.log(`Iniciando borrado de ${aBorrar.length} elementos...`);
+            let cont = 0;
+            
+            for (const item of aBorrar) {
+                try {
+                    // Usamos la referencia interna a la DB, es infalible
+                    await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'consola_links', item.firebaseId));
+                    cont++;
+                    console.log(`[${cont}/${aBorrar.length}] Borrado: ${item.title}`);
+                } catch (e) {
+                    console.error("Error borrando", item, e);
+                }
+            }
+
+            alert(`✅ LIMPIEZA TERMINADA.\nSe eliminaron ${cont} links repetidos.\nTu consola está limpia.`);
+        };
+        
     </script>
 </body>
 </html>
+
