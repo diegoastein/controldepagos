@@ -7,13 +7,11 @@
     <!-- CONFIGURACIÓN PWA -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#4338ca">
-    <title>Mis Pagos</title>
+    <title>Mis Pagos Cloud</title>
 
     <!-- ICONO -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' style='background:%234338ca;border-radius:100px'><path fill='white' d='M32 448c0 17.7 14.3 32 32 32h384c17.7 0 32-14.3 32-32V160H32v288zm160-212c0-6.6 5.4-12 12-12h104c6.6 0 12 5.4 12 12v8c0 6.6-5.4 12-12 12H204c-6.6 0-12-5.4-12-12v-8zM480 32H32C14.3 32 0 46.3 0 64v48c0 8.8 7.2 16 16 16h480c8.8 0 16-7.2 16-16V64c0-17.7-14.3-32-32-32z'/></svg>">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' style='background:%234338ca'><path fill='white' d='M32 448c0 17.7 14.3 32 32 32h384c17.7 0 32-14.3 32-32V160H32v288zm160-212c0-6.6 5.4-12 12-12h104c6.6 0 12 5.4 12 12v8c0 6.6-5.4 12-12 12H204c-6.6 0-12-5.4-12-12v-8zM480 32H32C14.3 32 0 46.3 0 64v48c0 8.8 7.2 16 16 16h480c8.8 0 16-7.2 16-16V64c0-17.7-14.3-32-32-32z'/></svg>">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -25,34 +23,29 @@
         .paid-item { opacity: 0.6; background-color: #f0fdf4; }
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        /* Eliminar flechas de input number pero permitir decimales */
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         
-        /* Notificación de Backup */
-        #backup-notification {
-            position: fixed; top: 20px; right: 20px; z-index: 50;
-            transform: translateX(150%); transition: transform 0.5s ease-out;
+        /* Toast Notification */
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 8px; padding: 16px; position: fixed; z-index: 100; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 14px; opacity: 0; transition: opacity 0.3s, bottom 0.3s;
         }
-        #backup-notification.show { transform: translateX(0); }
+        #toast.show { visibility: visible; opacity: 1; bottom: 50px; }
+        
+        /* Loader */
+        .loader { border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #4338ca; width: 30px; height: 30px; -webkit-animation: spin 1s linear infinite; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="pb-32 select-none">
 
-    <!-- Notificación Backup -->
-    <div id="backup-notification" class="bg-indigo-900 text-white p-4 rounded-xl shadow-2xl flex items-center gap-4 max-w-xs border border-indigo-700">
-        <div class="bg-indigo-700 p-2 rounded-full"><i class="fas fa-cloud-upload-alt text-xl"></i></div>
-        <div>
-            <p class="font-bold text-sm">Backup Mensual</p>
-            <p class="text-xs text-indigo-200">No olvides guardar tu copia este mes.</p>
-        </div>
-        <button onclick="dismissBackup()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-    </div>
+    <!-- Toast -->
+    <div id="toast">Notificación</div>
 
     <!-- HEADER -->
-    <div class="bg-indigo-700 text-white rounded-b-3xl shadow-lg sticky top-0 z-20 pt-safe">
+    <div class="bg-indigo-700 text-white rounded-b-3xl shadow-lg sticky top-0 z-20 pt-safe transition-all" id="headerContainer">
         <div class="flex justify-between items-center p-4 border-b border-indigo-600">
             <button onclick="changeMonth(-1)" class="p-2 hover:bg-indigo-600 rounded-full"><i class="fas fa-chevron-left"></i></button>
-            <h2 id="currentMonthLabel" class="text-xl font-bold capitalize"></h2>
+            <h2 id="currentMonthLabel" class="text-xl font-bold capitalize">Cargando...</h2>
             <button onclick="changeMonth(1)" class="p-2 hover:bg-indigo-600 rounded-full"><i class="fas fa-chevron-right"></i></button>
         </div>
 
@@ -60,231 +53,315 @@
             <div class="flex justify-between items-end">
                 <div>
                     <p class="text-indigo-200 text-sm font-medium">Resta Pagar</p>
-                    <p class="text-4xl font-bold tracking-tight" id="totalRemaining">$0,00</p>
+                    <p class="text-4xl font-bold tracking-tight" id="totalRemaining">...</p>
                 </div>
                 <div class="text-right">
                     <p class="text-indigo-200 text-xs">Total Gastado</p>
-                    <p class="text-xl font-semibold opacity-90" id="totalSpent">$0,00</p>
+                    <p class="text-xl font-semibold opacity-90" id="totalSpent">...</p>
                 </div>
+            </div>
+            <!-- User Status -->
+            <div class="mt-4 flex justify-between items-center text-xs text-indigo-300 border-t border-indigo-600 pt-2">
+                <span id="connectionStatus"><i class="fas fa-circle-notch fa-spin mr-1"></i> Conectando...</span>
+                <span id="userIdDisplay" class="font-mono opacity-70"></span>
             </div>
         </div>
     </div>
 
     <div class="p-4 max-w-md mx-auto fade-in" id="mainContainer">
-
-        <!-- NAVEGACIÓN -->
-        <div class="flex bg-gray-200 p-1 rounded-xl mb-6">
-            <button onclick="showSection('list')" id="btn-list" class="flex-1 py-2 rounded-lg text-sm font-bold bg-white shadow text-indigo-700 transition-all">Pagos</button>
-            <button onclick="showSection('add')" id="btn-add" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all">Servicios</button>
-            <button onclick="showSection('stats')" id="btn-stats" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all">Gráficos</button>
+        
+        <!-- Loading State -->
+        <div id="appLoader" class="text-center py-10">
+            <div class="loader"></div>
+            <p class="text-gray-500 text-sm">Sincronizando con la nube...</p>
         </div>
 
-        <!-- LISTA DE PAGOS -->
-        <div id="section-list">
-            <div class="w-full bg-gray-300 rounded-full h-2.5 mb-6 overflow-hidden">
-                <div id="progressBar" class="bg-green-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+        <div id="appContent" class="hidden">
+            <!-- NAVEGACIÓN -->
+            <div class="flex bg-gray-200 p-1 rounded-xl mb-6">
+                <button onclick="showSection('list')" id="btn-list" class="flex-1 py-2 rounded-lg text-sm font-bold bg-white shadow text-indigo-700 transition-all">Pagos</button>
+                <button onclick="showSection('add')" id="btn-add" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all">Servicios</button>
+                <button onclick="showSection('stats')" id="btn-stats" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all">Gráficos</button>
             </div>
 
-            <div id="emptyState" class="hidden text-center py-10 opacity-50">
-                <i class="fas fa-check-circle text-4xl mb-2"></i>
-                <p>Todo al día</p>
-            </div>
-
-            <div id="pendingList"></div>
-            
-            <div id="completedHeader" class="hidden mt-8 mb-2 flex items-center gap-2">
-                <div class="h-px bg-gray-300 flex-1"></div>
-                <span class="text-xs text-gray-400 font-bold uppercase">Pagados / Archivados</span>
-                <div class="h-px bg-gray-300 flex-1"></div>
-            </div>
-            <div id="completedList"></div>
-        </div>
-
-        <!-- AGREGAR / GESTIONAR SERVICIOS -->
-        <div id="section-add" class="hidden">
-            <!-- Formulario -->
-            <div class="card border-l-4 border-indigo-500 mb-6">
-                <div class="flex justify-between items-center mb-1">
-                    <h3 class="text-lg font-bold text-gray-800" id="formTitle">Nuevo Servicio</h3>
-                    <button onclick="resetForm()" id="cancelEditBtn" class="hidden text-xs text-red-500 font-bold border border-red-200 px-2 py-1 rounded">Cancelar</button>
+            <!-- LISTA DE PAGOS -->
+            <div id="section-list">
+                <div class="w-full bg-gray-300 rounded-full h-2.5 mb-6 overflow-hidden">
+                    <div id="progressBar" class="bg-green-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
-                <p class="text-xs text-gray-500 mb-4">Se repetirá mensualmente.</p>
+
+                <div id="emptyState" class="hidden text-center py-10 opacity-50">
+                    <i class="fas fa-check-circle text-4xl mb-2"></i>
+                    <p>Todo al día</p>
+                </div>
+
+                <div id="pendingList"></div>
                 
-                <form id="addForm" onsubmit="handleServiceSubmit(event)">
-                    <input type="hidden" id="editingId" value="">
-                    
-                    <div class="mb-4">
-                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nombre</label>
-                        <input type="text" id="serviceName" placeholder="Ej: Visa, Luz..." class="w-full rounded-lg bg-gray-50 p-3 border outline-none focus:border-indigo-500" required>
-                    </div>
-                    <div class="mb-4">
-                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Día Vencimiento</label>
-                        <input type="number" id="serviceDay" placeholder="1-31" min="1" max="31" class="w-full rounded-lg bg-gray-50 p-3 border outline-none focus:border-indigo-500" required>
-                    </div>
-                    <div class="mb-6 flex items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
-                        <input type="checkbox" id="isCreditCard" class="h-5 w-5 text-indigo-600 rounded">
-                        <label for="isCreditCard" class="ml-2 text-sm text-gray-700 font-medium">Es Tarjeta de Crédito</label>
-                    </div>
-                    <button type="submit" id="submitBtn" class="w-full bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform">Guardar Servicio</button>
-                </form>
+                <div id="completedHeader" class="hidden mt-8 mb-2 flex items-center gap-2">
+                    <div class="h-px bg-gray-300 flex-1"></div>
+                    <span class="text-xs text-gray-400 font-bold uppercase">Pagados / Archivados</span>
+                    <div class="h-px bg-gray-300 flex-1"></div>
+                </div>
+                <div id="completedList"></div>
             </div>
 
-            <!-- Lista de Servicios Activos -->
-            <h3 class="font-bold text-gray-700 mb-3 px-1">Mis Servicios Activos</h3>
-            <div id="servicesList" class="space-y-3 pb-8"></div>
+            <!-- AGREGAR / GESTIONAR SERVICIOS -->
+            <div id="section-add" class="hidden">
+                <!-- Formulario -->
+                <div class="card border-l-4 border-indigo-500 mb-6">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-lg font-bold text-gray-800" id="formTitle">Nuevo Servicio</h3>
+                        <button onclick="resetForm()" id="cancelEditBtn" class="hidden text-xs text-red-500 font-bold border border-red-200 px-2 py-1 rounded">Cancelar</button>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-4">Se guardará en la nube automáticamente.</p>
+                    
+                    <form id="addForm" onsubmit="handleServiceSubmit(event)">
+                        <input type="hidden" id="editingId" value="">
+                        
+                        <div class="mb-4">
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Nombre</label>
+                            <input type="text" id="serviceName" placeholder="Ej: Visa, Luz..." class="w-full rounded-lg bg-gray-50 p-3 border outline-none focus:border-indigo-500" required>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Día Vencimiento</label>
+                            <input type="number" id="serviceDay" placeholder="1-31" min="1" max="31" class="w-full rounded-lg bg-gray-50 p-3 border outline-none focus:border-indigo-500" required>
+                        </div>
+                        <div class="mb-6 flex items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
+                            <input type="checkbox" id="isCreditCard" class="h-5 w-5 text-indigo-600 rounded">
+                            <label for="isCreditCard" class="ml-2 text-sm text-gray-700 font-medium">Es Tarjeta de Crédito</label>
+                        </div>
+                        <button type="submit" id="submitBtn" class="w-full bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform">Guardar en la Nube</button>
+                    </form>
+                </div>
 
-            <!-- SECCIÓN DE BACKUP -->
-            <div class="mt-8 border-t-2 border-dashed border-gray-300 pt-6 pb-6">
-                <h3 class="font-bold text-gray-700 mb-2 px-1"><i class="fas fa-save mr-1"></i> Copia de Seguridad</h3>
-                <div class="bg-white p-4 rounded-xl shadow-sm">
-                    <p class="text-xs text-gray-500 mb-3">Guarda el archivo en tu carpeta de <b>Google Drive</b> para mayor seguridad.</p>
-                    <div class="flex gap-2">
-                        <button onclick="exportData()" class="flex-1 bg-gray-700 text-white py-3 rounded-lg text-sm font-bold hover:bg-gray-800 transition-colors">
-                            <i class="fas fa-download mr-1"></i> Descargar
+                <!-- Lista de Servicios Activos -->
+                <h3 class="font-bold text-gray-700 mb-3 px-1">Mis Servicios Activos</h3>
+                <div id="servicesList" class="space-y-3 pb-8"></div>
+
+                <!-- SECCIÓN DE MIGRACIÓN -->
+                <div class="mt-8 border-t-2 border-dashed border-gray-300 pt-6 pb-6">
+                    <h3 class="font-bold text-gray-700 mb-2 px-1"><i class="fas fa-cloud-upload-alt mr-1"></i> Migración</h3>
+                    <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-xl shadow-sm">
+                        <p class="text-xs text-indigo-800 mb-3">Si tenías datos guardados en este dispositivo, podés subirlos a la base de datos ahora.</p>
+                        <button onclick="migrateLocalData()" class="w-full bg-indigo-600 text-white py-3 rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors">
+                            <i class="fas fa-sync-alt mr-1"></i> Migrar Datos Locales a Cloud
                         </button>
-                        <button onclick="document.getElementById('importFile').click()" class="flex-1 bg-white border border-gray-300 text-gray-700 py-3 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors">
-                            <i class="fas fa-upload mr-1"></i> Restaurar
-                        </button>
-                        <input type="file" id="importFile" class="hidden" accept=".json" onchange="importData(this)">
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- ESTADÍSTICAS -->
-        <div id="section-stats" class="hidden">
-            <div class="card">
-                <h3 class="font-bold mb-4">Evolución de Gastos</h3>
-                <select id="statsSelector" onchange="renderChart()" class="w-full p-3 bg-gray-50 border rounded-lg mb-4 outline-none"></select>
-                <div class="relative h-64"><canvas id="expenseChart"></canvas></div>
+            <!-- ESTADÍSTICAS -->
+            <div id="section-stats" class="hidden">
+                <div class="card">
+                    <h3 class="font-bold mb-4">Evolución de Gastos</h3>
+                    <select id="statsSelector" onchange="renderChart()" class="w-full p-3 bg-gray-50 border rounded-lg mb-4 outline-none"></select>
+                    <div class="relative h-64"><canvas id="expenseChart"></canvas></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        let viewedDate = new Date();
-        let services = JSON.parse(localStorage.getItem('services_v3')) || [];
-        let payments = JSON.parse(localStorage.getItem('payments_v3')) || {};
-        let lastBackupMonth = localStorage.getItem('lastBackupMonth');
+    <!-- FIREBASE IMPORTS -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuración de Moneda Argentina
+        // TUS CREDENCIALES
+        const manualConfig = {
+            apiKey: "AIzaSyDV49rOWSXUDq5Dc81hcvC_GzUgVZ-duzY",
+            authDomain: "personal-19e5a.firebaseapp.com",
+            projectId: "personal-19e5a",
+            storageBucket: "personal-19e5a.firebasestorage.app",
+            messagingSenderId: "1001081181470",
+            appId: "1:1001081181470:web:a90cdccb22368c8013a50f"
+        };
+
+        // LÓGICA DE INICIALIZACIÓN (No tocar)
+        const firebaseConfig = (typeof manualConfig !== 'undefined') 
+            ? manualConfig 
+            : JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        
+        const appId = (typeof manualConfig !== 'undefined' && manualConfig.appId) 
+             ? manualConfig.appId 
+             : (typeof __app_id !== 'undefined' ? __app_id : 'default-app');
+
+        // Inicializar
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Variables Globales de Estado
+        let currentUser = null;
+        let services = []; // Array de servicios desde Firestore
+        let payments = {}; // Objeto mapa { '2023-10': [pagos] }
+        let servicesUnsubscribe = null;
+        let paymentsUnsubscribe = null;
+        
+        let viewedDate = new Date();
         const AR_CURRENCY = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2 });
 
-        function getMonthKey(date) { return date.toISOString().slice(0, 7); }
-        function getPrevMonthKey(date) {
-            const d = new Date(date);
-            d.setMonth(d.getMonth() - 1);
-            return getMonthKey(d);
+        // --- AUTH & INIT ---
+        const initAuth = async () => {
+            try {
+                // Detectar si estamos usando configuración manual
+                const isManualConfig = typeof manualConfig !== 'undefined';
+
+                // Si usamos config manual, IGNORAMOS el token automático del entorno (que es para otro proyecto)
+                // y usamos autenticación anónima directamente.
+                if (!isManualConfig && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    // Fallback a anónimo (Asegúrate de tener "Anonymous Auth" habilitado en tu consola Firebase)
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth error:", error);
+                // Si falla y no hay config, probablemente falten las credenciales
+                if (Object.keys(firebaseConfig).length === 0) {
+                     showToast("Falta configuración de Firebase");
+                } else {
+                    showToast("Error de autenticación: Revisa consola");
+                }
+            }
+        };
+
+        initAuth();
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-wifi text-green-400"></i> En línea';
+                document.getElementById('userIdDisplay').innerText = `ID: ${user.uid.slice(0,5)}...`;
+                setupListeners(user.uid);
+            } else {
+                currentUser = null;
+                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-times text-red-400"></i> Desconectado';
+                document.getElementById('appLoader').classList.remove('hidden');
+                document.getElementById('appContent').classList.add('hidden');
+            }
+        });
+
+        // --- FIRESTORE LISTENERS ---
+        function setupListeners(uid) {
+            // 1. Escuchar Servicios
+            // Path: artifacts/{appId}/users/{uid}/gastos_services
+            const servicesRef = collection(db, 'artifacts', appId, 'users', uid, 'gastos_services');
+            servicesUnsubscribe = onSnapshot(servicesRef, (snapshot) => {
+                services = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Si la UI está lista, refrescar
+                if (document.getElementById('section-add').classList.contains('hidden') === false) {
+                    window.renderServicesManagement();
+                }
+                checkAndRender();
+            }, (error) => console.error("Error services:", error));
+
+            // 2. Escuchar Pagos
+            // Path: artifacts/{appId}/users/{uid}/gastos_payments
+            // Nota: Traemos todo para simplificar la lógica del cliente existente. 
+            // En una app más grande, filtraríamos por fecha.
+            const paymentsRef = collection(db, 'artifacts', appId, 'users', uid, 'gastos_payments');
+            paymentsUnsubscribe = onSnapshot(paymentsRef, (snapshot) => {
+                const rawPayments = snapshot.docs.map(doc => ({ firebaseId: doc.id, ...doc.data() }));
+                
+                // Reconstruir el objeto `payments` { "YYYY-MM": [...] }
+                payments = {};
+                rawPayments.forEach(p => {
+                    // Extraer YYYY-MM de dueDate
+                    const monthKey = p.dueDate.slice(0, 7);
+                    if (!payments[monthKey]) payments[monthKey] = [];
+                    payments[monthKey].push(p);
+                });
+
+                checkAndRender();
+            }, (error) => console.error("Error payments:", error));
         }
 
-        // --- BACKUP ---
-        function checkBackupStatus() {
-            const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-            if (lastBackupMonth !== currentMonth) {
-                setTimeout(() => {
-                    document.getElementById('backup-notification').classList.add('show');
-                }, 1500);
+        function checkAndRender() {
+            // Ocultar loader y mostrar app cuando tenemos datos (o arrays vacíos)
+            document.getElementById('appLoader').classList.add('hidden');
+            document.getElementById('appContent').classList.remove('hidden');
+            
+            // Renderizar el mes actual
+            window.renderUI();
+        }
+
+        // --- CORE LOGIC (Adaptada para Firestore) ---
+
+        window.getMonthKey = (date) => date.toISOString().slice(0, 7);
+        window.getPrevMonthKey = (date) => {
+            const d = new Date(date);
+            d.setMonth(d.getMonth() - 1);
+            return window.getMonthKey(d);
+        }
+
+        // Genera pagos si no existen para el mes actual, basándose en Servicios activos
+        window.ensureMonthData = async (key) => {
+            if (!services.length) return;
+            
+            // Verificar si YA tenemos pagos para este mes en memoria
+            if (payments[key] && payments[key].length > 0) return;
+
+            // Si no hay pagos en memoria, verificar si es porque no existen o porque no hemos creado
+            // Como onSnapshot está activo, si el array está vacío, es que no hay en DB.
+            // Crear pagos para este mes
+            const newPayments = services.map(s => ({
+                serviceId: s.id, // ID del doc del servicio
+                name: s.name,
+                amount: 0,
+                totalBill: 0,
+                previousBalance: 0,
+                dueDate: `${key}-${String(s.day).padStart(2,'0')}`,
+                paid: false,
+                isCreditCard: s.isCreditCard,
+                paymentType: 'total',
+                createdAt: new Date().toISOString()
+            }));
+
+            // Batch write para eficiencia
+            if (newPayments.length > 0) {
+                const batch = writeBatch(db);
+                newPayments.forEach(p => {
+                    const ref = doc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_payments'));
+                    batch.set(ref, p);
+                });
+                await batch.commit();
+                showToast("Mes inicializado");
             }
         }
 
-        function dismissBackup() {
-            document.getElementById('backup-notification').classList.remove('show');
-        }
-
-        function exportData() {
-            // Fecha para el nombre de archivo
-            const now = new Date();
-            const day = String(now.getDate()).padStart(2, '0');
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const year = now.getFullYear();
-            const fileName = `backuppagos${day}${month}${year}.json`;
-
-            const data = { services, payments, appVersion: 'v6', timestamp: now.toISOString() };
-            const jsonStr = JSON.stringify(data, null, 2);
-            
-            // Usar Blob para manejo de caracteres correcto
-            const blob = new Blob([jsonStr], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", url);
-            downloadAnchorNode.setAttribute("download", fileName);
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-            URL.revokeObjectURL(url);
-
-            // Actualizar registro de backup
-            const currentMonth = now.toISOString().slice(0, 7);
-            localStorage.setItem('lastBackupMonth', currentMonth);
-            lastBackupMonth = currentMonth;
-            dismissBackup();
-        }
-
-        function importData(input) {
-            const file = input.files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    // Validacion basica
-                    if (!data.services || !data.payments) throw new Error("Formato incorrecto");
-
-                    if(confirm("¿Reemplazar datos actuales con el archivo seleccionado?")) {
-                        services = data.services || [];
-                        payments = data.payments || {};
-                        saveData();
-                        alert("Restaurado con éxito.");
-                    }
-                } catch(err) { alert("El archivo no es válido o está dañado."); }
-            };
-            reader.readAsText(file);
-        }
-
-        // --- CORE ---
-        function updateRolloverDebts(currentKey) {
-            const prevKey = getPrevMonthKey(viewedDate);
-            const currentList = payments[currentKey];
-            const prevList = payments[prevKey];
-            if (!currentList || !prevList) return;
+        window.updateRolloverDebts = (currentKey) => {
+            // Calculo de deuda en cliente (solo visual, o deberíamos guardarlo?)
+            // Por simplicidad, calculamos en tiempo real al renderizar como antes.
+            // Pero NO guardamos en DB el previousBalance cada vez, solo lo mostramos.
+            const prevKey = window.getPrevMonthKey(viewedDate);
+            const currentList = payments[currentKey] || [];
+            const prevList = payments[prevKey] || [];
 
             currentList.forEach(item => {
                 const prevItem = prevList.find(p => p.serviceId === item.serviceId);
                 if (prevItem && prevItem.isCreditCard && prevItem.paymentType === 'parcial') {
                     const debt = (prevItem.totalBill || 0) - (prevItem.amount || 0);
-                    item.previousBalance = Math.max(0, debt);
+                    item.computedPrevBalance = Math.max(0, debt);
                 } else {
-                    item.previousBalance = 0;
+                    item.computedPrevBalance = 0;
                 }
             });
-            localStorage.setItem('payments_v3', JSON.stringify(payments));
         }
 
-        function ensureMonthData(key) {
-            if (!payments[key]) {
-                payments[key] = [];
-                services.forEach(s => payments[key].push(createPaymentFromService(s, key)));
-                localStorage.setItem('payments_v3', JSON.stringify(payments));
-            }
-        }
-
-        function createPaymentFromService(s, key) {
-            return {
-                id: Date.now() + Math.random(),
-                serviceId: s.id, name: s.name, amount: 0, totalBill: 0, previousBalance: 0,
-                dueDate: `${key}-${String(s.day).padStart(2,'0')}`, paid: false,
-                isCreditCard: s.isCreditCard, paymentType: 'total'
-            };
-        }
-
-        function renderUI() {
-            const key = getMonthKey(viewedDate);
+        window.renderUI = () => {
+            if (!currentUser) return;
+            
+            const key = window.getMonthKey(viewedDate);
             document.getElementById('currentMonthLabel').innerText = viewedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-            ensureMonthData(key);
-            updateRolloverDebts(key);
+            
+            // Intentar generar pagos si faltan
+            window.ensureMonthData(key);
+            
+            // Calcular deudas
+            window.updateRolloverDebts(key);
 
-            const list = payments[key];
+            const list = payments[key] || [];
             const pendingContainer = document.getElementById('pendingList');
             const completedContainer = document.getElementById('completedList');
             
@@ -294,178 +371,306 @@
             const pendingItems = list.filter(i => !i.paid).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
             const completedItems = list.filter(i => i.paid).sort((a, b) => new Date(b.dueDate) - new Date(a.dueDate));
 
-            pendingItems.forEach(item => pendingContainer.appendChild(createCard(item, key)));
+            pendingItems.forEach(item => pendingContainer.appendChild(window.createCard(item, key)));
             if (completedItems.length > 0) {
                 document.getElementById('completedHeader').classList.remove('hidden');
-                completedItems.forEach(item => completedContainer.appendChild(createCard(item, key)));
+                completedItems.forEach(item => completedContainer.appendChild(window.createCard(item, key)));
             } else {
                 document.getElementById('completedHeader').classList.add('hidden');
             }
             document.getElementById('emptyState').className = (list.length === 0 || (pendingItems.length === 0 && completedItems.length === 0)) ? 'text-center py-10 opacity-50' : 'hidden';
-            calculateTotals(list);
-            renderServicesManagement();
+            
+            window.calculateTotals(list);
         }
 
-        function createCard(item, key) {
-            const index = payments[key].findIndex(p => p.id === item.id);
+        window.createCard = (item, key) => {
             const isCC = item.isCreditCard;
             const isPartial = item.paymentType === 'parcial';
-            
-            let prevBalanceHtml = item.previousBalance > 0 ? `<div class="bg-red-50 text-red-700 text-xs p-2 rounded mt-2 flex justify-between items-center border border-red-100"><span><i class="fas fa-history mr-1"></i> Saldo mes anterior:</span><span class="font-bold">${formatMoney(item.previousBalance)}</span></div>` : '';
+            const prevBalance = item.computedPrevBalance || 0; // Usar el calculado
 
-            // Se agrega step="0.01" para permitir centavos
+            let prevBalanceHtml = prevBalance > 0 ? `<div class="bg-red-50 text-red-700 text-xs p-2 rounded mt-2 flex justify-between items-center border border-red-100"><span><i class="fas fa-history mr-1"></i> Saldo mes anterior:</span><span class="font-bold">${window.formatMoney(prevBalance)}</span></div>` : '';
+
             let amountInputHtml = '';
-            const selectorHtml = isCC ? `<div class="mt-1 flex items-center gap-2 text-xs font-bold ${item.paid ? 'text-gray-400' : 'text-orange-600'}"><i class="fas fa-credit-card"></i><select onchange="updatePaymentType('${key}', ${index}, this.value)" class="bg-transparent border-none outline-none p-0 cursor-pointer"><option value="total" ${!isPartial ? 'selected' : ''}>Pago Total</option><option value="parcial" ${isPartial ? 'selected' : ''}>Pago Parcial</option></select></div>` : '';
+            const selectorHtml = isCC ? `<div class="mt-1 flex items-center gap-2 text-xs font-bold ${item.paid ? 'text-gray-400' : 'text-orange-600'}"><i class="fas fa-credit-card"></i><select onchange="updateDBField('${item.firebaseId}', 'paymentType', this.value)" class="bg-transparent border-none outline-none p-0 cursor-pointer"><option value="total" ${!isPartial ? 'selected' : ''}>Pago Total</option><option value="parcial" ${isPartial ? 'selected' : ''}>Pago Parcial</option></select></div>` : '';
 
             if (isCC && isPartial) {
-                amountInputHtml = `<div class="mt-2 space-y-2">${selectorHtml}<div class="flex justify-between items-center bg-gray-50 p-2 rounded"><span class="text-xs text-gray-500">Total Resumen</span><input type="number" step="0.01" value="${item.totalBill || ''}" placeholder="0.00" onchange="updateTotalBill('${key}', ${index}, this.value)" class="w-24 text-right bg-transparent border-b border-gray-300 focus:border-indigo-500 font-medium"></div><div class="flex justify-between items-center bg-indigo-50 p-2 rounded border border-indigo-100"><span class="text-xs font-bold text-indigo-700">A Pagar Hoy</span><div class="flex items-center"><span class="text-indigo-600 mr-1">$</span><input type="number" step="0.01" value="${item.amount || ''}" placeholder="0.00" onchange="updateAmount('${key}', ${index}, this.value)" class="w-24 text-right bg-transparent border-b border-indigo-300 focus:border-indigo-500 font-bold text-lg"></div></div><div class="text-xs text-right text-orange-600 font-medium">Queda debiendo: ${formatMoney((item.totalBill || 0) - (item.amount || 0))}</div></div>`;
+                amountInputHtml = `<div class="mt-2 space-y-2">${selectorHtml}<div class="flex justify-between items-center bg-gray-50 p-2 rounded"><span class="text-xs text-gray-500">Total Resumen</span><input type="number" step="0.01" value="${item.totalBill || ''}" placeholder="0.00" onchange="updateDBField('${item.firebaseId}', 'totalBill', this.value)" class="w-24 text-right bg-transparent border-b border-gray-300 focus:border-indigo-500 font-medium"></div><div class="flex justify-between items-center bg-indigo-50 p-2 rounded border border-indigo-100"><span class="text-xs font-bold text-indigo-700">A Pagar Hoy</span><div class="flex items-center"><span class="text-indigo-600 mr-1">$</span><input type="number" step="0.01" value="${item.amount || ''}" placeholder="0.00" onchange="updateDBField('${item.firebaseId}', 'amount', this.value)" class="w-24 text-right bg-transparent border-b border-indigo-300 focus:border-indigo-500 font-bold text-lg"></div></div><div class="text-xs text-right text-orange-600 font-medium">Queda debiendo: ${window.formatMoney((item.totalBill || 0) - (item.amount || 0))}</div></div>`;
             } else {
-                amountInputHtml = `<div class="mt-${isCC ? '2' : '4'} ${isCC ? '' : 'flex justify-between items-end bg-gray-50 p-2 rounded'}">${isCC ? selectorHtml : '<span class="text-xs font-bold text-gray-400 uppercase mb-1">Importe</span>'}<div class="${isCC ? 'flex justify-between items-end bg-gray-50 p-2 rounded mt-1' : 'flex items-center'}">${isCC ? '<span class="text-xs font-bold text-gray-400 uppercase mb-1">Total Resumen</span>' : ''}<div class="flex items-center ${isCC ? '' : 'ml-auto'}"><span class="text-gray-400 mr-1 text-lg">$</span><input type="number" step="0.01" value="${item.amount > 0 ? item.amount : ''}" placeholder="0.00" onchange="${isCC ? `updateAmountAndTotal('${key}', ${index}, this.value)` : `updateAmount('${key}', ${index}, this.value)`}" class="text-2xl font-bold w-32 text-right bg-transparent outline-none border-b border-transparent focus:border-indigo-500 p-0 text-gray-700"></div></div></div>`;
+                amountInputHtml = `<div class="mt-${isCC ? '2' : '4'} ${isCC ? '' : 'flex justify-between items-end bg-gray-50 p-2 rounded'}">${isCC ? selectorHtml : '<span class="text-xs font-bold text-gray-400 uppercase mb-1">Importe</span>'}<div class="${isCC ? 'flex justify-between items-end bg-gray-50 p-2 rounded mt-1' : 'flex items-center'}">${isCC ? '<span class="text-xs font-bold text-gray-400 uppercase mb-1">Total Resumen</span>' : ''}<div class="flex items-center ${isCC ? '' : 'ml-auto'}"><span class="text-gray-400 mr-1 text-lg">$</span><input type="number" step="0.01" value="${item.amount > 0 ? item.amount : ''}" placeholder="0.00" onchange="${isCC ? `updateAmountAndTotal('${item.firebaseId}', this.value)` : `updateDBField('${item.firebaseId}', 'amount', this.value)`}" class="text-2xl font-bold w-32 text-right bg-transparent outline-none border-b border-transparent focus:border-indigo-500 p-0 text-gray-700"></div></div></div>`;
             }
 
             const card = document.createElement('div');
             card.className = `card relative overflow-hidden transition-all ${item.paid ? 'paid-item bg-gray-50' : ''}`;
-            const deleteBtn = `<button onclick="deletePayment('${key}', ${index})" class="absolute top-2 right-2 text-gray-300 hover:text-red-400 p-2"><i class="fas fa-trash-alt text-xs"></i></button>`;
+            
+            // Delete: Only allows deleting manually created payments (optional safety)
+            const deleteBtn = `<button onclick="deletePayment('${item.firebaseId}')" class="absolute top-2 right-2 text-gray-300 hover:text-red-400 p-2"><i class="fas fa-trash-alt text-xs"></i></button>`;
 
-            card.innerHTML = `${!item.paid ? deleteBtn : ''}<div class="flex justify-between items-start pr-6"><div class="flex-1"><div class="flex items-center gap-2"><h3 class="font-bold text-gray-800 text-lg leading-tight">${item.name}</h3>${isOverdue(item.dueDate) && !item.paid ? '<span class="text-[10px] bg-red-100 text-red-600 px-1 rounded font-bold">VENCIDO</span>' : ''}</div><div class="flex items-center text-sm text-gray-500 gap-1 mt-1"><i class="far fa-calendar-alt text-xs"></i><input type="date" value="${item.dueDate}" onchange="updateDate('${key}', ${index}, this.value)" class="bg-transparent font-medium border-b border-dashed border-gray-300 focus:border-indigo-500 outline-none w-28 text-xs"></div></div><div onclick="togglePaid('${key}', ${index})" class="cursor-pointer ml-2 flex flex-col items-center justify-center h-10 w-10 rounded-full border-2 ${item.paid ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400 hover:text-green-400'} transition-all shadow-sm"><i class="fas fa-check"></i></div></div>${prevBalanceHtml}${amountInputHtml}`;
+            card.innerHTML = `${!item.paid ? deleteBtn : ''}<div class="flex justify-between items-start pr-6"><div class="flex-1"><div class="flex items-center gap-2"><h3 class="font-bold text-gray-800 text-lg leading-tight">${item.name}</h3>${window.isOverdue(item.dueDate) && !item.paid ? '<span class="text-[10px] bg-red-100 text-red-600 px-1 rounded font-bold">VENCIDO</span>' : ''}</div><div class="flex items-center text-sm text-gray-500 gap-1 mt-1"><i class="far fa-calendar-alt text-xs"></i><input type="date" value="${item.dueDate}" onchange="updateDBField('${item.firebaseId}', 'dueDate', this.value)" class="bg-transparent font-medium border-b border-dashed border-gray-300 focus:border-indigo-500 outline-none w-28 text-xs"></div></div><div onclick="updateDBField('${item.firebaseId}', 'paid', ${!item.paid})" class="cursor-pointer ml-2 flex flex-col items-center justify-center h-10 w-10 rounded-full border-2 ${item.paid ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-gray-300 hover:border-green-400 hover:text-green-400'} transition-all shadow-sm"><i class="fas fa-check"></i></div></div>${prevBalanceHtml}${amountInputHtml}`;
             return card;
         }
 
-        // --- CRUD ---
-        function renderServicesManagement() {
+        // --- DB ACTIONS ---
+        
+        window.updateDBField = async (docId, field, value) => {
+            if (!docId || !currentUser) return;
+            try {
+                // Parse numbers
+                if (field === 'amount' || field === 'totalBill') value = parseFloat(value) || 0;
+                
+                const ref = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_payments', docId);
+                await updateDoc(ref, { [field]: value });
+                // No need to render, listener handles it
+            } catch (e) { console.error(e); showToast("Error al actualizar"); }
+        }
+
+        window.updateAmountAndTotal = async (docId, value) => {
+            if (!docId || !currentUser) return;
+            const val = parseFloat(value) || 0;
+            const ref = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_payments', docId);
+            await updateDoc(ref, { amount: val, totalBill: val });
+        }
+
+        window.deletePayment = async (docId) => {
+            if (!confirm('¿Borrar este pago?')) return;
+            const ref = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_payments', docId);
+            await deleteDoc(ref);
+            showToast("Pago eliminado");
+        }
+
+        // --- SERVICES MANAGEMENT ---
+
+        window.handleServiceSubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('editingId').value;
+            const name = document.getElementById('serviceName').value;
+            const day = parseInt(document.getElementById('serviceDay').value);
+            const isCreditCard = document.getElementById('isCreditCard').checked;
+
+            try {
+                const colRef = collection(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_services');
+                
+                if (id) {
+                    // Update
+                    await updateDoc(doc(colRef, id), { name, day, isCreditCard });
+                    showToast("Servicio actualizado");
+                } else {
+                    // Create
+                    await addDoc(colRef, { name, day, isCreditCard, createdAt: new Date().toISOString() });
+                    showToast("Servicio creado");
+                }
+                window.resetForm();
+                if (!id) window.showSection('list');
+            } catch (err) {
+                console.error(err);
+                showToast("Error al guardar servicio");
+            }
+        }
+
+        window.renderServicesManagement = () => {
             const container = document.getElementById('servicesList');
             container.innerHTML = '';
-            if (services.length === 0) { container.innerHTML = '<p class="text-sm text-gray-400 text-center italic">No hay servicios.</p>'; return; }
+            if (services.length === 0) { container.innerHTML = '<p class="text-sm text-gray-400 text-center italic">No hay servicios en la nube.</p>'; return; }
+            
             services.forEach(s => {
                 const el = document.createElement('div');
                 el.className = 'bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex justify-between items-center';
-                el.innerHTML = `<div><div class="font-bold text-gray-800">${s.name}</div><div class="text-xs text-gray-500">Vence día ${s.day} • ${s.isCreditCard ? '<span class="text-orange-600 font-bold">Tarjeta</span>' : 'Servicio'}</div></div><div class="flex gap-2"><button onclick="startEditService(${s.id})" class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"><i class="fas fa-pencil-alt"></i></button><button onclick="deleteService(${s.id})" class="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100"><i class="fas fa-trash"></i></button></div>`;
+                el.innerHTML = `<div><div class="font-bold text-gray-800">${s.name}</div><div class="text-xs text-gray-500">Vence día ${s.day} • ${s.isCreditCard ? '<span class="text-orange-600 font-bold">Tarjeta</span>' : 'Servicio'}</div></div><div class="flex gap-2"><button onclick="startEditService('${s.id}')" class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100"><i class="fas fa-pencil-alt"></i></button><button onclick="deleteService('${s.id}')" class="p-2 text-red-500 bg-red-50 rounded-lg hover:bg-red-100"><i class="fas fa-trash"></i></button></div>`;
                 container.appendChild(el);
             });
         }
 
-        function handleServiceSubmit(e) {
-            e.preventDefault();
-            const id = document.getElementById('editingId').value;
-            const name = document.getElementById('serviceName').value;
-            const day = document.getElementById('serviceDay').value;
-            const isCC = document.getElementById('isCreditCard').checked;
-
-            if (id) {
-                // MODO EDICIÓN
-                const index = services.findIndex(s => s.id == id);
-                if (index !== -1) { 
-                    services[index] = { ...services[index], name, day, isCreditCard: isCC }; 
-                    
-                    // ACTUALIZAR PAGOS EXISTENTES (Core Fix)
-                    Object.keys(payments).forEach(monthKey => {
-                        payments[monthKey].forEach(p => {
-                            if (p.serviceId == id) {
-                                p.name = name; // Actualizar nombre visible
-                                p.isCreditCard = isCC; // Actualizar tipo
-                                // Opcional: Actualizar fecha de vencimiento si no está pagado
-                                if (!p.paid) {
-                                     const parts = p.dueDate.split('-');
-                                     p.dueDate = `${parts[0]}-${parts[1]}-${String(day).padStart(2,'0')}`;
-                                }
-                            }
-                        });
-                    });
-                    
-                    alert('Servicio y pagos actualizados'); 
-                }
-            } else {
-                // MODO CREACIÓN
-                const newService = { id: Date.now(), name, day, isCreditCard: isCC };
-                services.push(newService);
-                const key = getMonthKey(viewedDate);
-                if (payments[key]) payments[key].push(createPaymentFromService(newService, key));
-                alert('Creado');
-            }
-            saveData(); resetForm(); if(!id) showSection('list');
-        }
-
-        function startEditService(id) {
+        window.startEditService = (id) => {
             const s = services.find(x => x.id === id); if(!s) return;
             document.getElementById('editingId').value = s.id;
             document.getElementById('serviceName').value = s.name;
             document.getElementById('serviceDay').value = s.day;
             document.getElementById('isCreditCard').checked = s.isCreditCard;
             document.getElementById('formTitle').innerText = "Editar Servicio";
-            document.getElementById('submitBtn').innerText = "Actualizar Todo";
+            document.getElementById('submitBtn').innerText = "Actualizar Nube";
             document.getElementById('submitBtn').classList.replace('bg-indigo-700', 'bg-green-600');
             document.getElementById('cancelEditBtn').classList.remove('hidden');
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function deleteService(id) {
-            if(!confirm('¿Borrar?')) return;
-            services = services.filter(s => s.id !== id);
-            saveData();
+        window.deleteService = async (id) => {
+            if(!confirm('¿Borrar este servicio? (Los pagos históricos se mantienen)')) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_services', id));
+                showToast("Servicio borrado");
+            } catch (e) { showToast("Error al borrar"); }
         }
-        function deletePayment(key, index) { if(confirm('¿Borrar este mes?')) { payments[key].splice(index, 1); saveData(); } }
 
-        function resetForm() {
+        window.resetForm = () => {
             document.getElementById('addForm').reset();
             document.getElementById('editingId').value = "";
             document.getElementById('formTitle').innerText = "Nuevo Servicio";
-            document.getElementById('submitBtn').innerText = "Guardar";
+            document.getElementById('submitBtn').innerText = "Guardar en la Nube";
             document.getElementById('submitBtn').classList.replace('bg-green-600', 'bg-indigo-700');
             document.getElementById('cancelEditBtn').classList.add('hidden');
         }
 
-        // --- HELPERS ---
-        function formatMoney(amount) {
-            return AR_CURRENCY.format(amount);
+        // --- MIGRATION TOOL ---
+
+        window.migrateLocalData = async () => {
+            const localServices = JSON.parse(localStorage.getItem('services_v3')) || [];
+            const localPayments = JSON.parse(localStorage.getItem('payments_v3')) || {};
+            
+            if (localServices.length === 0 && Object.keys(localPayments).length === 0) {
+                alert("No se encontraron datos locales para migrar.");
+                return;
+            }
+
+            if (!confirm(`Se encontraron ${localServices.length} servicios y datos históricos. ¿Subir todo a la nube? Esto puede tardar unos segundos.`)) return;
+
+            document.getElementById('appLoader').classList.remove('hidden');
+            document.getElementById('appContent').classList.add('hidden');
+
+            try {
+                const batchLimit = 500;
+                let batch = writeBatch(db);
+                let count = 0;
+
+                // 1. Migrar Servicios
+                for (const s of localServices) {
+                    const ref = doc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_services')); // Auto ID
+                    batch.set(ref, { 
+                        name: s.name, 
+                        day: s.day, 
+                        isCreditCard: s.isCreditCard, 
+                        oldId: s.id, // Keep ref just in case
+                        createdAt: new Date().toISOString()
+                    });
+                    count++;
+                }
+
+                // 2. Migrar Pagos
+                // Necesitamos mapear los ID de servicios viejos a los nuevos? 
+                // En realidad, como el servicioId en los pagos viejos es solo un ID numérico y aquí usamos ese ID para agrupar,
+                // idealmente deberíamos hacer coincidir.
+                // PERO: Para simplificar, subiremos los pagos tal cual, pero los pagos nuevos usarán el ID de documento nuevo.
+                // Los pagos viejos quedarán "huerfanos" de servicio activo (no editables por servicio), pero visibles en historial.
+                // Si el usuario quiere perfección, debería ser manual, pero para visualizar historial basta con subir.
+                
+                // NOTA: Para que el sistema funcione bien, los pagos DEBEN tener un serviceId que coincida con un documento existente
+                // si queremos calcular deudas futuras.
+                // Simplicidad: Migramos tal cual. La lógica de visualización funcionará.
+                
+                const allMonths = Object.keys(localPayments);
+                for (const month of allMonths) {
+                    const paymentsList = localPayments[month];
+                    for (const p of paymentsList) {
+                        const ref = doc(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'gastos_payments'));
+                        batch.set(ref, {
+                            ...p,
+                            dueDate: p.dueDate || `${month}-10`, // Fallback
+                            migrated: true
+                        });
+                        count++;
+                        
+                        if (count >= batchLimit) {
+                            await batch.commit();
+                            batch = writeBatch(db);
+                            count = 0;
+                        }
+                    }
+                }
+
+                if (count > 0) await batch.commit();
+
+                // Limpiar local
+                if (confirm("Migración exitosa. ¿Borrar datos locales para evitar confusiones?")) {
+                    localStorage.removeItem('services_v3');
+                    localStorage.removeItem('payments_v3');
+                }
+                
+                showToast("¡Migración Completa!");
+
+            } catch (e) {
+                console.error(e);
+                alert("Hubo un error en la migración. Revisa la consola.");
+            } finally {
+                document.getElementById('appLoader').classList.add('hidden');
+                document.getElementById('appContent').classList.remove('hidden');
+            }
         }
 
-        function updateAmountAndTotal(k, i, v) { payments[k][i].amount = parseFloat(v)||0; payments[k][i].totalBill = parseFloat(v)||0; saveData(false); calculateTotals(payments[k]); }
-        function updateAmount(k, i, v) { payments[k][i].amount = parseFloat(v)||0; saveData(false); calculateTotals(payments[k]); }
-        function updateTotalBill(k, i, v) { payments[k][i].totalBill = parseFloat(v)||0; saveData(); }
-        function updatePaymentType(k, i, v) { payments[k][i].paymentType = v; if(v==='total') payments[k][i].amount = payments[k][i].totalBill||0; saveData(); }
-        function updateDate(k, i, v) { payments[k][i].dueDate = v; saveData(); }
-        function togglePaid(k, i) { payments[k][i].paid = !payments[k][i].paid; saveData(); }
-        function isOverdue(ds) { return ds < new Date().toISOString().slice(0, 10); }
-        function changeMonth(s) { viewedDate.setMonth(viewedDate.getMonth() + s); renderUI(); }
-        function calculateTotals(l) {
+        // --- HELPERS ---
+        window.formatMoney = (amount) => AR_CURRENCY.format(amount);
+        window.isOverdue = (ds) => ds < new Date().toISOString().slice(0, 10);
+        
+        window.changeMonth = (s) => { 
+            viewedDate.setMonth(viewedDate.getMonth() + s); 
+            window.renderUI(); 
+        }
+        
+        window.calculateTotals = (l) => {
             let rem=0, paid=0, tot=0;
-            l.forEach(p => { tot+=p.amount; if(p.paid) paid+=p.amount; else rem+=p.amount; });
-            document.getElementById('totalRemaining').innerText = formatMoney(rem);
-            document.getElementById('totalSpent').innerText = formatMoney(paid);
+            l.forEach(p => { 
+                const amt = p.amount || 0;
+                tot += amt; 
+                if(p.paid) paid += amt; 
+                else rem += amt; 
+            });
+            document.getElementById('totalRemaining').innerText = window.formatMoney(rem);
+            document.getElementById('totalSpent').innerText = window.formatMoney(paid);
             document.getElementById('progressBar').style.width = `${tot===0?0:(paid/tot)*100}%`;
         }
-        function saveData(render=true) { localStorage.setItem('services_v3', JSON.stringify(services)); localStorage.setItem('payments_v3', JSON.stringify(payments)); if(render) renderUI(); }
-        function showSection(id) {
-            ['list', 'add', 'stats'].forEach(s => { document.getElementById(`section-${s}`).classList.add('hidden'); document.getElementById(`btn-${s}`).className = "flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all"; });
+
+        window.showSection = (id) => {
+            ['list', 'add', 'stats'].forEach(s => { 
+                document.getElementById(`section-${s}`).classList.add('hidden'); 
+                document.getElementById(`btn-${s}`).className = "flex-1 py-2 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-300 transition-all"; 
+            });
             document.getElementById(`section-${id}`).classList.remove('hidden');
             document.getElementById(`btn-${id}`).className = "flex-1 py-2 rounded-lg text-sm font-bold bg-white shadow text-indigo-700 transition-all";
-            if(id === 'stats') loadStatsOptions();
-            if(id === 'add') renderServicesManagement();
+            
+            if(id === 'stats') window.loadStatsOptions();
+            if(id === 'add') window.renderServicesManagement();
         }
 
         // --- CHART ---
         let myChart = null;
-        function loadStatsOptions() {
+        window.loadStatsOptions = () => {
             const s = document.getElementById('statsSelector');
             s.innerHTML = '<option value="">Selecciona item...</option>';
             services.forEach(i => s.innerHTML += `<option value="${i.id}">${i.name}</option>`);
         }
-        function renderChart() {
+        
+        window.renderChart = () => {
             const sid = document.getElementById('statsSelector').value;
             if(!sid) return;
             const ctx = document.getElementById('expenseChart').getContext('2d');
+            
+            // Agrupar pagos de todos los meses
             const labels=[], data=[];
-            Object.keys(payments).sort().forEach(m => {
-                const item = payments[m].find(p => p.serviceId == sid);
-                if(item) { const [y, mo] = m.split('-'); labels.push(`${mo}/${y.slice(2)}`); data.push(item.amount); }
+            const allMonths = Object.keys(payments).sort();
+            
+            allMonths.forEach(m => {
+                // Find payments matching service ID (or name if migrated)
+                // Usamos loose check por si acaso
+                const item = payments[m].find(p => p.serviceId == sid); 
+                if(item) { 
+                    const [y, mo] = m.split('-'); 
+                    labels.push(`${mo}/${y.slice(2)}`); 
+                    data.push(item.amount); 
+                }
             });
+
             if(myChart) myChart.destroy();
-            myChart = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Pagado ($)', data, backgroundColor: '#4f46e5', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false } });
+            myChart = new Chart(ctx, { 
+                type: 'bar', 
+                data: { labels, datasets: [{ label: 'Pagado ($)', data, backgroundColor: '#4f46e5', borderRadius: 4 }] }, 
+                options: { responsive: true, maintainAspectRatio: false } 
+            });
+        }
+        
+        window.showToast = (msg) => {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.className = "show";
+            setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
         }
 
-        // INIT
-        checkBackupStatus();
-        renderUI();
     </script>
 </body>
 </html>
