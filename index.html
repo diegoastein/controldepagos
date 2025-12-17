@@ -52,9 +52,10 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNncW1wc2hqeWNicHJpZnB4enRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5MTYwNjQsImV4cCI6MjA4MTQ5MjA2NH0.mhae-9WuVGlXZwKlqUvplWGtlwbiEubSWo5MELnyWQk';
         
         const { useState, useEffect, useRef } = React;
-        const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = window.Recharts || {};
+        const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } = window.Recharts || {};
 
-        // Helper para moneda
+        const COLORS = ['#3b82f6', '#22c55e', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f97316', '#6366f1'];
+
         const formatCurrency = (amount) => {
             const num = parseFloat(amount) || 0;
             return new Intl.NumberFormat('es-AR', {
@@ -64,8 +65,7 @@
             }).format(num);
         };
 
-        // Iconos
-        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 0 012-2h2a2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
         const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 v2M7 7h10" /></svg>;
         const IconStats = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>;
         const IconCheck = () => <svg className="w-8 h-8 text-success" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
@@ -109,26 +109,22 @@
             );
         };
 
-        const ServicesView = ({ userId, supabaseInstance }) => {
-            const [services, setServices] = useState([]);
+        const ServicesView = ({ userId, supabaseInstance, services, onRefresh }) => {
             const [form, setForm] = useState({ name: '', day: 10, isCC: false });
             const [editingId, setEditingId] = useState(null);
             const [editForm, setEditForm] = useState({ name: '', default_due_day: 10, is_credit_card: false });
 
-            useEffect(() => { loadServices() }, []);
-
-            const loadServices = async () => {
-                const { data } = await supabaseInstance.from('services').select('*').order('created_at');
-                setServices(data || []);
-            };
-
             const addService = async (e) => {
                 e.preventDefault();
                 await supabaseInstance.from('services').insert([{ 
-                    user_id: userId, name: form.name, default_due_day: parseInt(form.day), is_credit_card: form.isCC 
+                    user_id: userId, 
+                    name: form.name, 
+                    default_due_day: parseInt(form.day), 
+                    is_credit_card: form.isCC,
+                    active: true
                 }]);
                 setForm({ name: '', day: 10, isCC: false });
-                loadServices();
+                onRefresh();
             };
 
             const saveEdit = async (id) => {
@@ -138,13 +134,13 @@
                     is_credit_card: editForm.is_credit_card
                 }).eq('id', id);
                 setEditingId(null);
-                loadServices();
+                onRefresh();
             };
 
             const deleteService = async (id) => {
                 if(confirm("¿Borrar este servicio?")) {
                     await supabaseInstance.from('services').delete().eq('id', id);
-                    loadServices();
+                    onRefresh();
                 }
             };
 
@@ -234,11 +230,26 @@
                 }
             };
 
+            let borderColor = 'border-primary';
+            let opacity = 'opacity-100';
+            if (item.is_paid) borderColor = 'border-success', opacity = 'opacity-70';
+            else if (item.skipped) borderColor = 'border-gray-300', opacity = 'opacity-50';
+            else if (item.isOverdue) borderColor = 'border-danger';
+
             return (
-                <div className={`card p-4 border-l-4 transition-all ${item.is_paid ? 'border-success opacity-70' : item.skipped ? 'border-gray-300 opacity-50' : 'border-primary'}`}>
+                <div className={`card p-4 border-l-4 transition-all ${borderColor} ${opacity}`}>
                     <div className="flex justify-between mb-2">
-                        <div>
-                            <h3 className="font-bold text-gray-800">{item.name}</h3>
+                        <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                                <h3 className={`font-bold text-gray-800 ${item.skipped ? 'line-through text-gray-400' : ''}`}>
+                                    {item.name}
+                                </h3>
+                                {item.isOverdue && (
+                                    <span className="bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded animate-pulse">
+                                        VENCIDO
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-gray-500">Vence: Día {item.default_due_day}</p>
                             {item.carry_over_amount > 0 && (
                                 <p className="text-xs text-orange-500 font-bold">Deuda arrastrada: {formatCurrency(item.carry_over_amount)}</p>
@@ -250,14 +261,14 @@
                     </div>
                     
                     {!item.skipped && (
-                        <div className="flex items-end gap-4">
+                        <div className="flex items-end gap-4 mt-1">
                             <div className="flex-1">
-                                <div className="flex items-center border-b border-gray-200 focus-within:border-primary transition-colors">
-                                    <span className="text-xl font-bold text-gray-600 mr-1">$</span>
+                                <div className={`flex items-center border-b ${item.isOverdue && !item.is_paid ? 'border-danger' : 'border-gray-200'} focus-within:border-primary transition-colors`}>
+                                    <span className={`text-xl font-bold mr-1 ${item.isOverdue && !item.is_paid ? 'text-danger' : 'text-gray-600'}`}>$</span>
                                     <input 
                                         type="number" 
                                         step="0.01"
-                                        className="w-full text-xl font-bold outline-none bg-transparent py-1"
+                                        className={`w-full text-xl font-bold outline-none bg-transparent py-1 ${item.isOverdue && !item.is_paid ? 'text-danger' : 'text-gray-800'}`}
                                         value={inputValue}
                                         onChange={(e) => setInputValue(e.target.value)}
                                         onBlur={handleBlur}
@@ -269,7 +280,11 @@
                                 </div>
                             </div>
                             <button onClick={togglePaid} className="transition-transform active:scale-90 shrink-0">
-                                {item.is_paid ? <IconCheck /> : <IconCircle />}
+                                {item.is_paid ? <IconCheck /> : (
+                                    <div className={item.isOverdue ? 'text-danger hover:text-red-700' : ''}>
+                                        <IconCircle />
+                                    </div>
+                                )}
                             </button>
                         </div>
                     )}
@@ -283,24 +298,28 @@
             );
         };
 
-        const DashboardView = ({ userId, supabaseInstance }) => {
+        const DashboardView = ({ userId, supabaseInstance, services }) => {
             const [date, setDate] = useState(new Date());
             const [items, setItems] = useState([]);
             const [loading, setLoading] = useState(true);
 
-            useEffect(() => { loadData() }, [date]);
+            useEffect(() => { loadData() }, [date, services]); 
 
             const loadData = async () => {
                 setLoading(true);
-                const month = date.getMonth() + 1;
-                const year = date.getFullYear();
+                const today = new Date();
+                const currentDay = today.getDate();
+                const currentMonth = today.getMonth() + 1;
+                const currentYear = today.getFullYear();
 
-                let prevMonth = month - 1;
-                let prevYear = year;
-                if (prevMonth === 0) { prevMonth = 12; prevYear = year - 1; }
+                const viewMonth = date.getMonth() + 1;
+                const viewYear = date.getFullYear();
 
-                const { data: services } = await supabaseInstance.from('services').select('*').eq('active', true);
-                const { data: payments } = await supabaseInstance.from('payments').select('*').eq('month', month).eq('year', year);
+                let prevMonth = viewMonth - 1;
+                let prevYear = viewYear;
+                if (prevMonth === 0) { prevMonth = 12; prevYear = viewYear - 1; }
+
+                const { data: payments } = await supabaseInstance.from('payments').select('*').eq('month', viewMonth).eq('year', viewYear);
                 const { data: prevPayments } = await supabaseInstance.from('payments').select('*').eq('month', prevMonth).eq('year', prevYear);
 
                 if (services) {
@@ -318,6 +337,12 @@
                             amountDue = carryOver;
                         }
 
+                        const isOverdue = !pay?.is_paid && !pay?.skipped && (
+                            viewYear < currentYear || 
+                            (viewYear === currentYear && viewMonth < currentMonth) ||
+                            (viewYear === currentYear && viewMonth === currentMonth && currentDay > svc.default_due_day)
+                        );
+
                         return {
                             ...svc,
                             payment_id: pay?.id,
@@ -325,7 +350,8 @@
                             amount_paid: pay?.amount_paid || 0,
                             is_paid: pay?.is_paid || false,
                             skipped: pay?.skipped || false,
-                            carry_over_amount: carryOver
+                            carry_over_amount: carryOver,
+                            isOverdue: isOverdue
                         };
                     });
                     
@@ -411,35 +437,93 @@
             );
         };
 
-        const StatsView = ({ supabaseInstance }) => {
-            const [data, setData] = useState([]);
+        const StatsView = ({ supabaseInstance, services }) => {
+            const [annualData, setAnnualData] = useState([]);
+            const [pieData, setPieData] = useState([]);
+            const [loading, setLoading] = useState(true);
+
             useEffect(() => {
                 const calc = async () => {
-                    const year = new Date().getFullYear();
+                    setLoading(true);
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = now.getMonth() + 1;
+
                     const { data: payments } = await supabaseInstance.from('payments').select('month, amount_paid').eq('year', year).eq('is_paid', true);
                     const chartData = Array.from({length: 12}, (_, i) => {
                         const m = i + 1;
                         const total = payments?.filter(p => p.month === m).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0) || 0;
                         return { name: new Date(2024, i, 1).toLocaleString('es-ES', {month:'short'}), total };
                     });
-                    setData(chartData);
+                    setAnnualData(chartData);
+
+                    const { data: currentMonthPayments } = await supabaseInstance.from('payments').select('amount_paid, service_id').eq('year', year).eq('month', month).eq('is_paid', true);
+                    
+                    if (currentMonthPayments && services.length > 0) {
+                        const distribution = currentMonthPayments.map(p => {
+                            const svc = services.find(s => s.id === p.service_id);
+                            return {
+                                name: svc ? svc.name : 'Desconocido',
+                                value: parseFloat(p.amount_paid)
+                            };
+                        }).filter(p => p.value > 0);
+                        setPieData(distribution);
+                    }
+                    setLoading(false);
                 };
                 calc();
-            }, []);
+            }, [services]);
+
+            if (loading) return <div className="text-center p-10 text-gray-500">Cargando estadísticas...</div>;
 
             return (
-                <div className="p-4 pb-24 md:pt-10 max-w-4xl mx-auto h-screen flex flex-col fade-in">
-                    <h2 className="text-xl font-bold mb-4">Evolución de Gastos ({new Date().getFullYear()})</h2>
-                    <div className="card p-4 flex-1 max-h-[500px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={data}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val}`} />
-                                <Tooltip formatter={(val) => [formatCurrency(val), 'Total']} />
-                                <Bar dataKey="total" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                <div className="p-4 pb-24 md:pt-10 max-w-4xl mx-auto space-y-8 fade-in">
+                    <h2 className="text-xl font-bold">Resumen de Gastos</h2>
+
+                    <div className="card p-6">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase mb-6">Distribución Mes Actual</h3>
+                        {pieData.length > 0 ? (
+                            <div className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={pieData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                        >
+                                            {pieData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip formatter={(val) => formatCurrency(val)} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ) : (
+                            <div className="h-[100px] flex items-center justify-center text-gray-400">
+                                No hay pagos registrados este mes para mostrar distribución.
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="card p-6">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase mb-6">Evolución Anual ({new Date().getFullYear()})</h3>
+                        <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={annualData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val/1000}k`} />
+                                    <Tooltip formatter={(val) => [formatCurrency(val), 'Total']} />
+                                    <Bar dataKey="total" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
             );
@@ -449,12 +533,30 @@
             const [supabaseInstance, setSupabaseInstance] = useState(null);
             const [session, setSession] = useState(null);
             const [view, setView] = useState('dashboard');
+            const [services, setServices] = useState([]);
+
+            const fetchServices = async (client, userId) => {
+                if (!userId) return;
+                const { data } = await client.from('services')
+                    .select('*')
+                    .eq('active', true)
+                    .order('created_at');
+                setServices(data || []);
+            };
 
             useEffect(() => {
                 const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 setSupabaseInstance(client);
-                client.auth.getSession().then(({ data: { session } }) => setSession(session));
-                const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => setSession(session));
+                
+                client.auth.getSession().then(({ data: { session } }) => {
+                    setSession(session);
+                    if (session) fetchServices(client, session.user.id);
+                });
+
+                const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+                    setSession(session);
+                    if (session) fetchServices(client, session.user.id);
+                });
                 return () => subscription.unsubscribe();
             }, []);
 
@@ -464,9 +566,22 @@
             return (
                 <div className="min-h-screen">
                     <main>
-                        {view === 'dashboard' && <DashboardView userId={session.user.id} supabaseInstance={supabaseInstance} />}
-                        {view === 'services' && <ServicesView userId={session.user.id} supabaseInstance={supabaseInstance} />}
-                        {view === 'stats' && <StatsView supabaseInstance={supabaseInstance} />}
+                        {view === 'dashboard' && (
+                            <DashboardView 
+                                userId={session.user.id} 
+                                supabaseInstance={supabaseInstance} 
+                                services={services}
+                            />
+                        )}
+                        {view === 'services' && (
+                            <ServicesView 
+                                userId={session.user.id} 
+                                supabaseInstance={supabaseInstance} 
+                                services={services}
+                                onRefresh={() => fetchServices(supabaseInstance, session.user.id)}
+                            />
+                        )}
+                        {view === 'stats' && <StatsView supabaseInstance={supabaseInstance} services={services} />}
                     </main>
 
                     <nav className="fixed bottom-0 w-full bg-white border-t z-50">
