@@ -5,22 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Pagos Familiar</title>
     
-    <!-- FAVICON: Dinero con alas para un identificador visual rápido -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
     
-    <!-- 1. REACT Y REACTDOM DEBEN CARGARSE PRIMERO -->
+    <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     
-    <!-- 2. DEPENDENCIAS PRINCIPALES (que no dependen de React o Babel) -->
+    <!-- UI libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
-    
-    <!-- 3. DEPENDENCIAS DE REACT (prop-types debe ir antes de Recharts) -->
     <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
-
-    <!-- 4. BABEL STANDALONE (Debe ser la última antes de tu código) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script>
@@ -43,38 +38,35 @@
         .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Ocultar flechas de input number */
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // ==========================================
-        // CONFIGURACIÓN
-        // ==========================================
+        // Configuración de Supabase
         const SUPABASE_URL = 'https://sgqmpshjycbprifpxztl.supabase.co'; 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNncW1wc2hqeWNicHJpZnB4enRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5MTYwNjQsImV4cCI6MjA4MTQ5MjA2NH0.mhae-9WuVGlXZwKlqUvplWGtlwbiEubSWo5MELnyWQk';
         
         const { useState, useEffect, useRef } = React;
         const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = window.Recharts || {};
 
-        // ==========================================
-        // HELPER: Formateo de Moneda (Acepta centavos)
-        // ==========================================
+        // Helper para moneda
         const formatCurrency = (amount) => {
             const num = parseFloat(amount) || 0;
             return new Intl.NumberFormat('es-AR', {
                 style: 'currency',
-                currency: 'ARS', // Pesos Argentinos
+                currency: 'ARS',
                 minimumFractionDigits: 2,
             }).format(num);
         };
 
-        // ==========================================
-        // COMPONENTES DE ICONOS
-        // ==========================================
-        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
-        const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
+        // Iconos
+        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 0 012-2h2a2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+        const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 v2M7 7h10" /></svg>;
         const IconStats = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>;
         const IconCheck = () => <svg className="w-8 h-8 text-success" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
         const IconCircle = () => <svg className="w-8 h-8 text-gray-300 hover:text-primary transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /></svg>;
@@ -82,31 +74,6 @@
         const IconEdit = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
         const IconSave = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>;
 
-        // ==========================================
-        // VISTA: PANTALLA DE ERROR/CONFIG
-        // ==========================================
-        const ConfigRequired = ({ error }) => (
-            <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-                <div className="card p-8 w-full max-w-lg border-l-8 border-yellow-400">
-                    <h1 className="text-2xl font-bold text-gray-800 mb-4">⚠️ Cargando Aplicación</h1>
-                    {error ? (
-                         <div className="mb-4">
-                            <p className="text-red-600 font-bold">Problema de conexión:</p>
-                            <p className="text-gray-600 text-sm">{error}</p>
-                            <p className="mt-2 text-xs text-gray-500">
-                                Estamos intentando conectar con los servidores de Supabase...
-                            </p>
-                         </div>
-                    ) : (
-                        <p className="text-gray-600 animate-pulse">Iniciando sistema...</p>
-                    )}
-                </div>
-            </div>
-        );
-
-        // ==========================================
-        // VISTA: LOGIN
-        // ==========================================
         const AuthView = ({ supabaseInstance }) => {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
@@ -142,9 +109,6 @@
             );
         };
 
-        // ==========================================
-        // VISTA: SERVICIOS (Con Edición)
-        // ==========================================
         const ServicesView = ({ userId, supabaseInstance }) => {
             const [services, setServices] = useState([]);
             const [form, setForm] = useState({ name: '', day: 10, isCC: false });
@@ -161,21 +125,16 @@
             const addService = async (e) => {
                 e.preventDefault();
                 await supabaseInstance.from('services').insert([{ 
-                    user_id: userId, name: form.name, default_due_day: form.day, is_credit_card: form.isCC 
+                    user_id: userId, name: form.name, default_due_day: parseInt(form.day), is_credit_card: form.isCC 
                 }]);
                 setForm({ name: '', day: 10, isCC: false });
                 loadServices();
             };
 
-            const startEdit = (s) => {
-                setEditingId(s.id);
-                setEditForm({ name: s.name, default_due_day: s.default_due_day, is_credit_card: s.is_credit_card });
-            };
-
             const saveEdit = async (id) => {
                 await supabaseInstance.from('services').update({
                     name: editForm.name,
-                    default_due_day: editForm.default_due_day,
+                    default_due_day: parseInt(editForm.default_due_day),
                     is_credit_card: editForm.is_credit_card
                 }).eq('id', id);
                 setEditingId(null);
@@ -193,7 +152,6 @@
                 <div className="p-4 pb-24 md:pt-10 max-w-2xl mx-auto fade-in">
                     <h2 className="text-xl font-bold mb-4">Configurar Servicios</h2>
                     
-                    {/* Formulario de Alta */}
                     <form onSubmit={addService} className="card p-4 mb-6 grid gap-4 bg-blue-50 border border-blue-100">
                         <h3 className="text-sm font-bold text-blue-800 uppercase">Nuevo Servicio</h3>
                         <input type="text" placeholder="Nombre (ej: Netflix)" className="w-full p-2 border rounded" 
@@ -205,45 +163,39 @@
                                     value={form.day} onChange={e => setForm({...form, day: e.target.value})} />
                             </div>
                             <div className="flex items-center gap-2 pt-4">
-                                <input type="checkbox" checked={form.isCC} onChange={e => setForm({...form, isCC: e.target.checked})} className="w-5 h-5 rounded text-primary focus:ring-primary" />
-                                <label className="text-sm">Es Tarjeta de Crédito</label>
+                                <input type="checkbox" checked={form.isCC} onChange={e => setForm({...form, isCC: e.target.checked})} className="w-5 h-5 rounded text-primary" />
+                                <label className="text-sm font-medium">Es Tarjeta de Crédito</label>
                             </div>
                         </div>
                         <button className="bg-primary text-white py-2 rounded font-medium hover:bg-blue-600 transition">Agregar</button>
                     </form>
 
-                    {/* Lista de Servicios */}
                     <div className="space-y-3">
                         {services.map(s => (
-                            <div key={s.id} className="card p-4 flex flex-col gap-3 border-l-4 border-primary hover:shadow-md transition">
+                            <div key={s.id} className="card p-4 border-l-4 border-primary">
                                 {editingId === s.id ? (
-                                    // Modo Edición
                                     <div className="flex flex-col gap-3">
-                                        <input type="text" className="border p-2 rounded" value={editForm.name} onChange={e=>setEditForm({...editForm, name: e.target.value})} />
+                                        <input type="text" className="border p-2 rounded w-full" value={editForm.name} onChange={e=>setEditForm({...editForm, name: e.target.value})} />
                                         <div className="flex gap-4 items-center">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs text-gray-500">Día:</span>
-                                                <input type="number" className="border p-1 rounded w-16" value={editForm.default_due_day} onChange={e=>setEditForm({...editForm, default_due_day: e.target.value})} />
-                                            </div>
+                                            <input type="number" className="border p-1 rounded w-20" value={editForm.default_due_day} onChange={e=>setEditForm({...editForm, default_due_day: e.target.value})} />
                                             <div className="flex items-center gap-2">
                                                 <input type="checkbox" checked={editForm.is_credit_card} onChange={e=>setEditForm({...editForm, is_credit_card: e.target.checked})} />
-                                                <span className="text-xs text-gray-500">Tarjeta</span>
+                                                <span className="text-sm">Tarjeta</span>
                                             </div>
                                         </div>
                                         <div className="flex gap-2 justify-end">
-                                            <button onClick={()=>setEditingId(null)} className="text-gray-500 text-sm px-3 py-1">Cancelar</button>
+                                            <button onClick={()=>setEditingId(null)} className="text-gray-500 text-sm px-3">Cancelar</button>
                                             <button onClick={()=>saveEdit(s.id)} className="bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"><IconSave /> Guardar</button>
                                         </div>
                                     </div>
                                 ) : (
-                                    // Modo Visualización
                                     <div className="flex justify-between items-center">
                                         <div>
                                             <h3 className="font-bold">{s.name}</h3>
                                             <p className="text-xs text-gray-500">Vence día {s.default_due_day} {s.is_credit_card ? '(Tarjeta)' : ''}</p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button onClick={() => startEdit(s)} className="text-gray-400 hover:text-blue-500 p-2"><IconEdit /></button>
+                                            <button onClick={() => { setEditingId(s.id); setEditForm({name:s.name, default_due_day:s.default_due_day, is_credit_card:s.is_credit_card}); }} className="text-gray-400 hover:text-blue-500 p-2"><IconEdit /></button>
                                             <button onClick={() => deleteService(s.id)} className="text-gray-400 hover:text-danger p-2"><IconTrash /></button>
                                         </div>
                                     </div>
@@ -255,96 +207,41 @@
             );
         };
 
-        // ==========================================
-        // COMPONENTE: ITEM DE PAGO (Controla su propio estado)
-        // ==========================================
-        const PaymentItem = ({ item, userId, date, onUpdate, supabaseInstance }) => {
-            // Estado local para evitar re-renderizados masivos al escribir. 
-            // Representa el monto que el usuario está definiendo para pagar/actualizar.
-            const [localAmount, setLocalAmount] = useState('');
-            // Estado para controlar si es un pago parcial (solo para CC)
-            const [isPartialPay, setIsPartialPay] = useState(false); 
+        const PaymentItem = ({ item, onUpdate, onDeletePayment }) => {
+            const [inputValue, setInputValue] = useState('');
 
-            // Sincronizar estado local si cambian las props
             useEffect(() => {
-                // Si el item está pagado, muestra lo que se pagó. 
-                // Si no, muestra lo que se debe (amount_due).
-                const initialValue = item.is_paid ? item.amount_paid : item.amount_due;
-                setLocalAmount(initialValue ? parseFloat(initialValue).toFixed(2) : '0.00');
-                // Al cambiar de ítem o al iniciar, resetear el check de pago parcial.
-                setIsPartialPay(false); 
-            }, [item.amount_due, item.amount_paid, item.is_paid, item.id]); // Added item.id dependency
+                const initialVal = item.is_paid ? item.amount_paid : item.amount_due;
+                setInputValue(initialVal ? parseFloat(initialVal).toString() : '0');
+            }, [item.amount_due, item.amount_paid, item.is_paid]);
 
             const handleBlur = async () => {
-                const parsedAmount = parseFloat(localAmount);
-                if (isNaN(parsedAmount) || parsedAmount < 0) {
-                    setLocalAmount('0.00');
-                    return;
-                }
-
-                const newAmount = parsedAmount.toFixed(2);
-                setLocalAmount(newAmount);
-                
-                // Si NO está pagado:
-                // Esto maneja la edición del monto total a pagar (amount_due) antes de marcarlo como pagado, 
-                // tanto para CC (factura variable) como para servicios normales.
-                if (!item.is_paid && newAmount !== parseFloat(item.amount_due).toFixed(2)) {
-                    await onUpdate(item, { amount_due: newAmount });
+                const val = parseFloat(inputValue) || 0;
+                if (!item.is_paid && val !== parseFloat(item.amount_due)) {
+                    await onUpdate(item, { amount_due: val });
                 }
             };
 
             const togglePaid = async () => {
-                const newStatus = !item.is_paid;
-                
-                if (newStatus === true) {
-                    let amountToPay = parseFloat(localAmount);
-
-                    if (item.is_credit_card && !isPartialPay) {
-                        // Pago Total: usa el monto total adeudado del ítem, ignorando el input local 
-                        // si es diferente (aunque el input ya fue actualizado por blur).
-                        amountToPay = parseFloat(item.amount_due);
-                        // Aseguramos que el input se sincronice con el pago total si no estaba en modo parcial
-                        setLocalAmount(amountToPay.toFixed(2));
-                    } 
-                    
-                    amountToPay = Math.max(0, amountToPay);
-
+                if (item.is_paid) {
+                    await onDeletePayment(item.payment_id);
+                } else {
+                    const amountToPay = parseFloat(inputValue) || 0;
                     await onUpdate(item, { 
                         is_paid: true, 
-                        amount_paid: amountToPay.toFixed(2), 
+                        amount_paid: amountToPay
                     });
-                } else {
-                    // LÓGICA DE DESMARCAR (Quitar el check)
-                    // Si el ítem ya tenía un payment_id, lo eliminamos de la base de datos.
-                    if (item.payment_id) {
-                         // Llamada directa a Supabase para eliminar el registro de pago.
-                         await supabaseInstance.from('payments').delete().eq('id', item.payment_id);
-                         
-                         // Forzar el refresh después de la eliminación.
-                         await onUpdate({}, {}); 
-                    } else {
-                        // Si no tiene payment_id, actualizamos localmente.
-                        await onUpdate(item, { 
-                            is_paid: false, 
-                            amount_paid: 0,
-                        });
-                    }
                 }
             };
-            
-            const remainingBalance = parseFloat(item.amount_due) - parseFloat(item.amount_paid);
 
             return (
-                <div className={`card p-4 border-l-4 transition-all ${item.is_paid ? 'border-success opacity-70' : item.skipped ? 'border-gray-300 opacity-50 grayscale' : 'border-primary'}`}>
+                <div className={`card p-4 border-l-4 transition-all ${item.is_paid ? 'border-success opacity-70' : item.skipped ? 'border-gray-300 opacity-50' : 'border-primary'}`}>
                     <div className="flex justify-between mb-2">
                         <div>
-                            <h3 className={`font-bold ${item.skipped ? 'line-through':''}`}>{item.name}</h3>
+                            <h3 className="font-bold text-gray-800">{item.name}</h3>
                             <p className="text-xs text-gray-500">Vence: Día {item.default_due_day}</p>
-                            {/* Mostrar el carry over si existe */}
                             {item.carry_over_amount > 0 && (
-                                <p className="text-xs text-orange-500 font-medium mt-1">
-                                    Deuda arrastrada: {formatCurrency(item.carry_over_amount)}
-                                </p>
+                                <p className="text-xs text-orange-500 font-bold">Deuda arrastrada: {formatCurrency(item.carry_over_amount)}</p>
                             )}
                         </div>
                         <button onClick={() => onUpdate(item, { skipped: !item.skipped })} className="text-xs bg-gray-100 px-2 py-1 rounded h-fit hover:bg-gray-200">
@@ -353,96 +250,55 @@
                     </div>
                     
                     {!item.skipped && (
-                        <>
-                            {item.is_credit_card && !item.is_paid && (
-                                <div className="flex items-center gap-2 mb-2">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={isPartialPay} 
-                                        onChange={e => {
-                                            const newIsPartialPay = e.target.checked;
-                                            setIsPartialPay(newIsPartialPay);
-                                            
-                                            // Al marcar/desmarcar parcial, el input debe reflejar el monto total para edición.
-                                            setLocalAmount(parseFloat(item.amount_due).toFixed(2));
-                                        }} 
-                                        className="w-4 h-4 rounded text-primary focus:ring-primary" 
-                                        id={`partial-pay-${item.id}`}
-                                    />
-                                    <label htmlFor={`partial-pay-${item.id}`} className="text-sm text-gray-600">Pago Parcial (editar para pagar menos)</label>
-                                </div>
-                            )}
-
-                            <div className="flex items-end gap-3">
-                                <div className="flex-1">
-                                    {/* Etiqueta eliminada, solo queda el monto total a pagar como referencia */}
-                                    <span className="text-xs uppercase font-bold text-gray-400">
-                                        Total Adeudado: {formatCurrency(item.amount_due)}
-                                    </span>
+                        <div className="flex items-end gap-4">
+                            <div className="flex-1">
+                                <div className="flex items-center border-b border-gray-200 focus-within:border-primary transition-colors">
+                                    <span className="text-xl font-bold text-gray-600 mr-1">$</span>
                                     <input 
                                         type="number" 
-                                        step="0.01" // Acepta centavos
-                                        className="w-full text-lg font-bold border-b border-gray-200 outline-none bg-transparent focus:border-primary"
-                                        placeholder="0.00" 
-                                        value={localAmount}
-                                        onChange={(e) => setLocalAmount(e.target.value)}
+                                        step="0.01"
+                                        className="w-full text-xl font-bold outline-none bg-transparent py-1"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
                                         onBlur={handleBlur}
-                                        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                                        // El input es editable siempre que no esté pagado
+                                        onFocus={(e) => { 
+                                            if (parseFloat(inputValue) === 0) setInputValue(''); 
+                                        }}
                                         disabled={item.is_paid}
                                     />
                                 </div>
-                                
-                                <button onClick={togglePaid} className="transition-transform active:scale-95">
-                                    {item.is_paid ? <IconCheck /> : (
-                                        item.is_credit_card && !isPartialPay ? (
-                                            // Pagar Total para CC
-                                            <span className="bg-primary text-white text-xs px-3 py-1.5 rounded-full h-[38px] flex items-center justify-center font-bold hover:bg-blue-600 transition-transform">Pagar Total</span>
-                                        ) : (
-                                            // Pagar Parcial CC o Pago Simple
-                                            <IconCircle />
-                                        )
-                                    )}
-                                </button>
                             </div>
-                        </>
+                            <button onClick={togglePaid} className="transition-transform active:scale-90 shrink-0">
+                                {item.is_paid ? <IconCheck /> : <IconCircle />}
+                            </button>
+                        </div>
                     )}
                     
-                    {/* Mostrar saldo pendiente para CC si fue pago parcial */}
-                    {item.is_paid && item.is_credit_card && remainingBalance > 0.01 && (
-                         <p className="text-xs text-red-500 font-medium mt-2 p-1 bg-red-50 rounded">
-                             Saldo pendiente (se arrastra al próximo mes): {formatCurrency(remainingBalance)}
+                    {item.is_paid && item.is_credit_card && (parseFloat(item.amount_due) - parseFloat(item.amount_paid)) > 0.01 && (
+                         <p className="text-xs text-red-500 font-medium mt-2">
+                             Restan {formatCurrency(parseFloat(item.amount_due) - parseFloat(item.amount_paid))} para el próximo mes.
                          </p>
                     )}
                 </div>
             );
         };
 
-        // ==========================================
-        // VISTA: DASHBOARD
-        // ==========================================
         const DashboardView = ({ userId, supabaseInstance }) => {
             const [date, setDate] = useState(new Date());
             const [items, setItems] = useState([]);
             const [loading, setLoading] = useState(true);
-            const [refreshKey, setRefreshKey] = useState(0); // Estado para forzar refresco
 
-            useEffect(() => { loadData() }, [date, refreshKey]); // Dependencia del refreshKey
+            useEffect(() => { loadData() }, [date]);
 
             const loadData = async () => {
                 setLoading(true);
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
 
-                // 1. Calcular mes y año anterior para buscar deuda arrastrada (carry-over)
                 let prevMonth = month - 1;
                 let prevYear = year;
-                if (prevMonth === 0) {
-                    prevMonth = 12;
-                    prevYear = year - 1;
-                }
+                if (prevMonth === 0) { prevMonth = 12; prevYear = year - 1; }
 
-                // Obtener datos
                 const { data: services } = await supabaseInstance.from('services').select('*').eq('active', true);
                 const { data: payments } = await supabaseInstance.from('payments').select('*').eq('month', month).eq('year', year);
                 const { data: prevPayments } = await supabaseInstance.from('payments').select('*').eq('month', prevMonth).eq('year', prevYear);
@@ -450,183 +306,117 @@
                 if (services) {
                     const merged = services.map(svc => {
                         const pay = payments?.find(p => p.service_id === svc.id);
+                        const prevPay = prevPayments?.find(p => p.service_id === svc.id);
                         
-                        let currentAmountDue = parseFloat(pay?.amount_due) || 0; // Monto esperado original del mes
                         let carryOver = 0;
-                        
-                        // Lógica de arrastre de deuda (solo CC)
-                        if (svc.is_credit_card) {
-                            const prevPay = prevPayments?.find(p => p.service_id === svc.id);
-                            
-                            if (prevPay && prevPay.is_paid) {
-                                // Saldo remanente (amount_due - amount_paid)
-                                const remainingBalance = (parseFloat(prevPay.amount_due) || 0) - (parseFloat(prevPay.amount_paid) || 0);
-                                if (remainingBalance > 0.01) { // Usar 0.01 para evitar problemas de float
-                                    carryOver = remainingBalance;
-                                    currentAmountDue = (currentAmountDue) + carryOver; // Sumar la deuda al monto esperado
-                                }
-                            }
+                        if (svc.is_credit_card && prevPay && prevPay.is_paid) {
+                            carryOver = Math.max(0, (parseFloat(prevPay.amount_due) || 0) - (parseFloat(prevPay.amount_paid) || 0));
                         }
 
-                        // amount_due es el total a pagar (original + arrastre)
+                        let amountDue = parseFloat(pay?.amount_due || 0);
+                        if (!pay) {
+                            amountDue = carryOver;
+                        }
+
                         return {
                             ...svc,
-                            payment_id: pay?.id, // ID del registro de pago para eliminación
-                            amount_due: currentAmountDue.toFixed(2), // Total a pagar, incluyendo carryOver (para CC)
-                            amount_paid: parseFloat(pay?.amount_paid || 0).toFixed(2),
+                            payment_id: pay?.id,
+                            amount_due: amountDue,
+                            amount_paid: pay?.amount_paid || 0,
                             is_paid: pay?.is_paid || false,
                             skipped: pay?.skipped || false,
-                            carry_over_amount: carryOver,
-                            is_credit_card: svc.is_credit_card
+                            carry_over_amount: carryOver
                         };
                     });
                     
-                    // 2. Lógica de Ordenamiento: Pendientes por fecha (asc), Pagados al final
-                    const sortedItems = merged.sort((a, b) => {
-                        // Pagados van al final (true es mayor que false)
-                        if (a.is_paid !== b.is_paid) {
-                            return a.is_paid ? 1 : -1; // Pagado (1) va al final, No Pagado (-1) va al inicio
-                        }
-
-                        // Ítems sin pagar (o pagados): ordenar por fecha de vencimiento (más cercano primero)
+                    const sorted = merged.sort((a, b) => {
+                        if (a.is_paid !== b.is_paid) return a.is_paid ? 1 : -1;
                         return a.default_due_day - b.default_due_day;
                     });
-                    
-                    setItems(sortedItems);
+                    setItems(sorted);
                 }
                 setLoading(false);
             };
-            
-            // Los cálculos de totales deben usar los valores actuales del estado, que ya tienen el carry-over incluido.
-            const totalDue = items.filter(i => !i.skipped).reduce((acc, c) => acc + parseFloat(c.amount_due), 0);
-            const totalPaid = items.filter(i => !i.skipped && i.is_paid).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0); // Usamos amount_paid real
-            const remaining = totalDue - totalPaid;
 
             const updatePayment = async (item, updates) => {
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
-
-                let payload = {
+                const payload = {
                     service_id: item.id,
                     user_id: userId,
                     month,
                     year,
-                    // Campos actuales (los usamos como base)
-                    amount_due: parseFloat(item.amount_due) || 0,
-                    amount_paid: parseFloat(item.amount_paid) || 0,
-                    is_paid: item.is_paid,
-                    skipped: item.skipped,
+                    amount_due: updates.amount_due !== undefined ? updates.amount_due : item.amount_due,
+                    amount_paid: updates.amount_paid !== undefined ? updates.amount_paid : item.amount_paid,
+                    is_paid: updates.is_paid !== undefined ? updates.is_paid : item.is_paid,
+                    skipped: updates.skipped !== undefined ? updates.skipped : item.skipped,
                 };
 
-                // Sobrescribir con las actualizaciones
-                Object.keys(updates).forEach(key => {
-                    if (key === 'amount_due' || key === 'amount_paid') {
-                        payload[key] = parseFloat(updates[key]) || 0;
-                    } else {
-                        payload[key] = updates[key];
-                    }
-                });
-                
-                // 1. Actualización Optimista + Reordenamiento Local
-                setItems(prevItems => 
-                    prevItems.map(i => 
-                        i.id === item.id 
-                            ? { 
-                                ...i, 
-                                is_paid: payload.is_paid, // Usa el nuevo estado
-                                amount_paid: payload.amount_paid, // Usa el nuevo monto pagado
-                                amount_due: payload.amount_due, // Usa el nuevo monto adeudado (importante para edición)
-                              } 
-                            : i
-                    ).sort((a, b) => { // Re-sort inmediatamente localmente
-                        if (a.is_paid !== b.is_paid) {
-                            return a.is_paid ? 1 : -1;
-                        }
-                        return a.default_due_day - b.default_due_day;
-                    })
-                );
-
-                // 2. Manejo de la base de datos: Upsert/Update
-                
-                // Determinar si ya existe un registro de pago para este mes y servicio
-                const paymentIdToUpdate = item.payment_id;
-
-                if (paymentIdToUpdate) {
-                     // Si existe un registro, lo actualizamos.
-                    await supabaseInstance.from('payments').update(payload).eq('id', paymentIdToUpdate);
+                if (item.payment_id) {
+                    await supabaseInstance.from('payments').update(payload).eq('id', item.payment_id);
                 } else {
-                    // Si no existe, lo insertamos/creamos.
-                    const { data: inserted } = await supabaseInstance.from('payments').insert(payload).select();
-                    
-                     // Si insertamos un nuevo pago, necesitamos el ID para futuras eliminaciones/actualizaciones.
-                    if (inserted && inserted.length > 0) {
-                         setItems(prevItems => 
-                             prevItems.map(i => i.id === item.id ? { ...i, payment_id: inserted[0].id } : i)
-                         );
-                    }
+                    await supabaseInstance.from('payments').insert(payload);
                 }
-                
-                // 3. Failsafe Full Data Reload
-                setRefreshKey(prev => prev + 1);
+                loadData();
             };
 
-            const changeMonth = (delta) => {
-                const d = new Date(date);
-                d.setMonth(d.getMonth() + delta);
-                setDate(d);
+            const deletePayment = async (id) => {
+                await supabaseInstance.from('payments').delete().eq('id', id);
+                loadData();
+            };
+
+            const totalPaid = items.filter(i => !i.skipped && i.is_paid).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0);
+            const remaining = items.filter(i => !i.skipped && !i.is_paid).reduce((acc, c) => acc + parseFloat(c.amount_due), 0);
+
+            const changeMonth = (offset) => {
+                const newDate = new Date(date);
+                newDate.setMonth(newDate.getMonth() + offset);
+                setDate(newDate);
             };
 
             return (
                 <div className="p-4 pb-24 md:pt-10 max-w-4xl mx-auto fade-in">
                     <div className="flex justify-between items-center mb-6 card p-3">
-                        <button onClick={() => changeMonth(-1)} className="p-2 font-bold text-xl hover:bg-gray-100 rounded">&lt;</button>
+                        <button onClick={() => changeMonth(-1)} className="p-2 font-bold text-xl hover:bg-gray-100 rounded transition-colors">&lt;</button>
                         <h2 className="text-xl font-bold capitalize">{date.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</h2>
-                        <button onClick={() => changeMonth(1)} className="p-2 font-bold text-xl hover:bg-gray-100 rounded">&gt;</button>
+                        <button onClick={() => changeMonth(1)} className="p-2 font-bold text-xl hover:bg-gray-100 rounded transition-colors">&gt;</button>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2 mb-6 text-center">
-                        <div className="bg-blue-100 p-2 rounded text-blue-800">
-                            <div className="text-xs uppercase font-bold">Total Due</div>
-                            <div className="font-bold text-lg">{formatCurrency(totalDue)}</div>
+                    <div className="grid grid-cols-2 gap-4 mb-6 text-center">
+                        <div className="bg-green-100 p-4 rounded-xl text-green-800 shadow-sm border border-green-200">
+                            <div className="text-[10px] uppercase font-bold tracking-wider mb-1">Pagado</div>
+                            <div className="font-bold text-xl">{formatCurrency(totalPaid)}</div>
                         </div>
-                        <div className="bg-green-100 p-2 rounded text-green-800">
-                            <div className="text-xs uppercase font-bold">Pagado</div>
-                            <div className="font-bold text-lg">{formatCurrency(totalPaid)}</div>
-                        </div>
-                        <div className="bg-red-100 p-2 rounded text-red-800 border border-red-200">
-                            <div className="text-xs uppercase font-bold">Resta</div>
-                            <div className="font-bold text-lg">{formatCurrency(remaining)}</div>
+                        <div className="bg-red-100 p-4 rounded-xl text-red-800 shadow-sm border border-red-200">
+                            <div className="text-[10px] uppercase font-bold tracking-wider mb-1">Resta Pagar</div>
+                            <div className="font-bold text-xl">{formatCurrency(remaining)}</div>
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        {loading ? <div className="text-center p-4 text-gray-500">Cargando...</div> : items.map(item => (
-                            <PaymentItem 
-                                key={item.id} 
-                                item={item} 
-                                userId={userId} 
-                                date={date} 
-                                onUpdate={updatePayment} 
-                                supabaseInstance={supabaseInstance}
-                            />
-                        ))}
+                    <div className="space-y-4">
+                        {loading ? (
+                            <div className="text-center p-8 text-gray-400">Cargando pagos...</div>
+                        ) : (
+                            items.map(item => (
+                                <PaymentItem 
+                                    key={item.id} 
+                                    item={item} 
+                                    onUpdate={updatePayment} 
+                                    onDeletePayment={deletePayment}
+                                />
+                            ))
+                        )}
                     </div>
                 </div>
             );
         };
 
-        // ==========================================
-        // VISTA: ESTADÍSTICAS
-        // ==========================================
         const StatsView = ({ supabaseInstance }) => {
             const [data, setData] = useState([]);
-
             useEffect(() => {
                 const calc = async () => {
                     const year = new Date().getFullYear();
-                    // Usamos amount_paid ya que es el monto real pagado (importante para CC parciales)
                     const { data: payments } = await supabaseInstance.from('payments').select('month, amount_paid').eq('year', year).eq('is_paid', true);
-                    
                     const chartData = Array.from({length: 12}, (_, i) => {
                         const m = i + 1;
                         const total = payments?.filter(p => p.month === m).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0) || 0;
@@ -639,20 +429,15 @@
 
             return (
                 <div className="p-4 pb-24 md:pt-10 max-w-4xl mx-auto h-screen flex flex-col fade-in">
-                    <h2 className="text-xl font-bold mb-4">Gastos Anuales</h2>
+                    <h2 className="text-xl font-bold mb-4">Evolución de Gastos ({new Date().getFullYear()})</h2>
                     <div className="card p-4 flex-1 max-h-[500px]">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={data}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                <YAxis 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    // Usar el formato de moneda en el eje Y
-                                    tickFormatter={(value) => formatCurrency(value)} 
-                                />
-                                <Tooltip formatter={(value) => [formatCurrency(value), 'Total Pagado']} />
-                                <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val}`} />
+                                <Tooltip formatter={(val) => [formatCurrency(val), 'Total']} />
+                                <Bar dataKey="total" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -660,88 +445,44 @@
             );
         };
 
-        // ==========================================
-        // APP PRINCIPAL
-        // ==========================================
         const App = () => {
             const [supabaseInstance, setSupabaseInstance] = useState(null);
             const [session, setSession] = useState(null);
             const [view, setView] = useState('dashboard');
-            const [initError, setInitError] = useState(null);
 
-            // Efecto de Inicialización con Polling (Reintentos)
             useEffect(() => {
-                let attempts = 0;
-                const maxAttempts = 20; // 2 segundos max
-
-                const initSupabase = () => {
-                    try {
-                        const lib = window.supabase || window.Supabase;
-                        if (lib && (lib.createClient || (lib.default && lib.default.createClient))) {
-                            const createClient = lib.createClient || lib.default.createClient;
-                            if (SUPABASE_URL && SUPABASE_URL.startsWith('http')) {
-                                const client = createClient(SUPABASE_URL, SUPABASE_KEY);
-                                setSupabaseInstance(client);
-                                return true;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn("Intento de carga fallido:", e);
-                    }
-                    return false;
-                };
-
-                if (!initSupabase()) {
-                    const interval = setInterval(() => {
-                        attempts++;
-                        if (initSupabase()) {
-                            clearInterval(interval);
-                        } else if (attempts >= maxAttempts) {
-                            clearInterval(interval);
-                            setInitError("No se pudo cargar la librería Supabase tras varios intentos.");
-                        }
-                    }, 100);
-                    return () => clearInterval(interval);
-                }
+                const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                setSupabaseInstance(client);
+                client.auth.getSession().then(({ data: { session } }) => setSession(session));
+                const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => setSession(session));
+                return () => subscription.unsubscribe();
             }, []);
 
-            // Efecto de Sesión
-            useEffect(() => {
-                if (supabaseInstance) {
-                    supabaseInstance.auth.getSession().then(({ data: { session } }) => setSession(session));
-                    const { data: { subscription } } = supabaseInstance.auth.onAuthStateChange((_event, session) => setSession(session));
-                    return () => subscription.unsubscribe();
-                }
-            }, [supabaseInstance]);
-
-            if (!supabaseInstance) {
-                return <ConfigRequired error={initError} />;
-            }
-
+            if (!supabaseInstance) return <div className="p-10 text-center text-gray-500">Iniciando aplicación...</div>;
             if (!session) return <AuthView supabaseInstance={supabaseInstance} />;
 
             return (
-                <div className="min-h-screen pb-16 md:pb-0">
-                    {/* Contenido */}
-                    {view === 'dashboard' && <DashboardView userId={session.user.id} supabaseInstance={supabaseInstance} />}
-                    {view === 'services' && <ServicesView userId={session.user.id} supabaseInstance={supabaseInstance} />}
-                    {view === 'stats' && <StatsView supabaseInstance={supabaseInstance} />}
+                <div className="min-h-screen">
+                    <main>
+                        {view === 'dashboard' && <DashboardView userId={session.user.id} supabaseInstance={supabaseInstance} />}
+                        {view === 'services' && <ServicesView userId={session.user.id} supabaseInstance={supabaseInstance} />}
+                        {view === 'stats' && <StatsView supabaseInstance={supabaseInstance} />}
+                    </main>
 
-                    {/* Navbar */}
-                    <nav className="fixed bottom-0 w-full bg-white border-t z-50 md:top-0 md:bottom-auto">
+                    <nav className="fixed bottom-0 w-full bg-white border-t z-50">
                         <div className="flex justify-around items-center h-16 max-w-4xl mx-auto">
-                            <button onClick={() => setView('dashboard')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${view==='dashboard'?'text-primary font-bold':'text-gray-400 hover:bg-gray-50'}`}>
-                                <IconDashboard /><span className="text-xs">Pagos</span>
+                            <button onClick={() => setView('dashboard')} className={`flex flex-col items-center p-2 transition-colors ${view==='dashboard'?'text-primary font-bold':'text-gray-400'}`}>
+                                <IconDashboard /><span className="text-[10px]">Pagos</span>
                             </button>
-                            <button onClick={() => setView('services')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${view==='services'?'text-primary font-bold':'text-gray-400 hover:bg-gray-50'}`}>
-                                <IconServices /><span className="text-xs">Servicios</span>
+                            <button onClick={() => setView('services')} className={`flex flex-col items-center p-2 transition-colors ${view==='services'?'text-primary font-bold':'text-gray-400'}`}>
+                                <IconServices /><span className="text-[10px]">Servicios</span>
                             </button>
-                            <button onClick={() => setView('stats')} className={`flex flex-col items-center p-2 rounded-lg transition-colors ${view==='stats'?'text-primary font-bold':'text-gray-400 hover:bg-gray-50'}`}>
-                                <IconStats /><span className="text-xs">Gráficos</span>
+                            <button onClick={() => setView('stats')} className={`flex flex-col items-center p-2 transition-colors ${view==='stats'?'text-primary font-bold':'text-gray-400'}`}>
+                                <IconStats /><span className="text-[10px]">Gráficos</span>
                             </button>
-                            <button onClick={() => supabaseInstance.auth.signOut()} className="flex flex-col items-center p-2 rounded-lg text-gray-400 hover:text-danger hover:bg-red-50 transition-colors">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                                <span className="text-xs">Salir</span>
+                            <button onClick={() => supabaseInstance.auth.signOut()} className="flex flex-col items-center p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                <span className="text-[10px]">Salir</span>
                             </button>
                         </div>
                     </nav>
