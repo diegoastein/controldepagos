@@ -285,12 +285,12 @@
                 const newAmount = parsedAmount.toFixed(2);
                 setLocalAmount(newAmount);
                 
-                // Si NO es CC y NO está pagado:
-                // Esto maneja la edición del monto a pagar antes de marcarlo como pagado.
-                if (!item.is_credit_card && !item.is_paid && newAmount !== parseFloat(item.amount_due).toFixed(2)) {
+                // Si NO está pagado:
+                // Esto maneja la edición del monto total a pagar (amount_due) antes de marcarlo como pagado, 
+                // tanto para CC (factura variable) como para servicios normales.
+                if (!item.is_paid && newAmount !== parseFloat(item.amount_due).toFixed(2)) {
                     await onUpdate(item, { amount_due: newAmount });
                 }
-                // Si es pagado (item.is_paid es true) o si es CC, la edición se maneja solo a través de togglePaid.
             };
 
             const togglePaid = async () => {
@@ -299,14 +299,12 @@
                 if (newStatus === true) {
                     let amountToPay = parseFloat(localAmount);
 
-                    if (item.is_credit_card) {
-                        if (isPartialPay) {
-                            // Pago Parcial (usa localAmount)
-                        } else {
-                            // Pago Total (usa amount_due)
-                            amountToPay = parseFloat(item.amount_due);
-                            setLocalAmount(amountToPay.toFixed(2));
-                        }
+                    if (item.is_credit_card && !isPartialPay) {
+                        // Pago Total: usa el monto total adeudado del ítem, ignorando el input local 
+                        // si es diferente (aunque el input ya fue actualizado por blur).
+                        amountToPay = parseFloat(item.amount_due);
+                        // Aseguramos que el input se sincronice con el pago total si no estaba en modo parcial
+                        setLocalAmount(amountToPay.toFixed(2));
                     } 
                     
                     amountToPay = Math.max(0, amountToPay);
@@ -320,14 +318,12 @@
                     // Si el ítem ya tenía un payment_id, lo eliminamos de la base de datos.
                     if (item.payment_id) {
                          // Llamada directa a Supabase para eliminar el registro de pago.
-                         // Esto es lo que resuelve el problema de que el check se vuelva a marcar.
                          await supabaseInstance.from('payments').delete().eq('id', item.payment_id);
                          
                          // Forzar el refresh después de la eliminación.
-                         // Usamos onUpdate sin argumentos para solo forzar el refresco de la lista.
                          await onUpdate({}, {}); 
                     } else {
-                        // Si no tiene payment_id (caso raro), simplemente actualizamos localmente.
+                        // Si no tiene payment_id, actualizamos localmente.
                         await onUpdate(item, { 
                             is_paid: false, 
                             amount_paid: 0,
@@ -364,16 +360,16 @@
                                         type="checkbox" 
                                         checked={isPartialPay} 
                                         onChange={e => {
-                                            setIsPartialPay(e.target.checked);
-                                            // Al cambiar a pago total (uncheck), el input debe reflejar el amount_due
-                                            if (!e.target.checked) {
-                                                setLocalAmount(parseFloat(item.amount_due).toFixed(2));
-                                            }
+                                            const newIsPartialPay = e.target.checked;
+                                            setIsPartialPay(newIsPartialPay);
+                                            
+                                            // Al marcar/desmarcar parcial, el input debe reflejar el monto total para edición.
+                                            setLocalAmount(parseFloat(item.amount_due).toFixed(2));
                                         }} 
                                         className="w-4 h-4 rounded text-primary focus:ring-primary" 
                                         id={`partial-pay-${item.id}`}
                                     />
-                                    <label htmlFor={`partial-pay-${item.id}`} className="text-sm text-gray-600">Pago Parcial</label>
+                                    <label htmlFor={`partial-pay-${item.id}`} className="text-sm text-gray-600">Pago Parcial (editar para pagar menos)</label>
                                 </div>
                             )}
 
@@ -392,8 +388,8 @@
                                         onChange={(e) => setLocalAmount(e.target.value)}
                                         onBlur={handleBlur}
                                         onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                                        // Si es CC y no es pago parcial, el input no debe ser editable, ya que el botón hará el pago total.
-                                        disabled={item.is_credit_card && !isPartialPay && !item.is_paid}
+                                        // El input es editable siempre que no esté pagado
+                                        disabled={item.is_paid}
                                     />
                                 </div>
                                 
@@ -532,7 +528,6 @@
                 });
                 
                 // 1. Actualización Optimista + Reordenamiento Local
-                // Esto asegura que el ítem cambie de is_paid: true a false inmediatamente y se reubique.
                 setItems(prevItems => 
                     prevItems.map(i => 
                         i.id === item.id 
@@ -540,6 +535,7 @@
                                 ...i, 
                                 is_paid: payload.is_paid, // Usa el nuevo estado
                                 amount_paid: payload.amount_paid, // Usa el nuevo monto pagado
+                                amount_due: payload.amount_due, // Usa el nuevo monto adeudado (importante para edición)
                               } 
                             : i
                     ).sort((a, b) => { // Re-sort inmediatamente localmente
@@ -550,30 +546,23 @@
                     })
                 );
 
-                // 2. Manejo de la base de datos: Upsert si es pagado, o si se actualiza solo amount_due (antes del pago)
-                if (item.payment_id && updates.is_paid === false) {
-                     // Si la actualización es una eliminación (togglePaid llamó directamente a delete), solo forzamos el refresh.
-                     // Si llegamos aquí con item.payment_id, es que solo se actualizó el monto antes del pago.
-                } else if (item.payment_id && updates.is_paid === true) {
-                     // Si es un pago existente, hacemos update
-                    await supabaseInstance.from('payments').update(payload).eq('id', item.payment_id);
-                } else if (!item.payment_id && updates.is_paid === true) {
-                    // Si es un pago nuevo, hacemos insert
+                // 2. Manejo de la base de datos: Upsert/Update
+                
+                // Determinar si ya existe un registro de pago para este mes y servicio
+                const paymentIdToUpdate = item.payment_id;
+
+                if (paymentIdToUpdate) {
+                     // Si existe un registro, lo actualizamos.
+                    await supabaseInstance.from('payments').update(payload).eq('id', paymentIdToUpdate);
+                } else {
+                    // Si no existe, lo insertamos/creamos.
                     const { data: inserted } = await supabaseInstance.from('payments').insert(payload).select();
+                    
                      // Si insertamos un nuevo pago, necesitamos el ID para futuras eliminaciones/actualizaciones.
                     if (inserted && inserted.length > 0) {
                          setItems(prevItems => 
                              prevItems.map(i => i.id === item.id ? { ...i, payment_id: inserted[0].id } : i)
                          );
-                    }
-                } else if (updates.amount_due && !item.is_paid) {
-                    // Si solo actualiza el monto pendiente (pre-pago)
-                    // Buscamos si existe un registro de pago pendiente, si no, lo creamos.
-                    const existingPay = payments?.find(p => p.service_id === item.id);
-                    if (existingPay) {
-                        await supabaseInstance.from('payments').update(payload).eq('id', existingPay.id);
-                    } else {
-                        await supabaseInstance.from('payments').insert(payload);
                     }
                 }
                 
