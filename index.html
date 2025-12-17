@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Pagos Familiar</title>
     
+    <!-- FAVICON: Dinero con alas para un identificador visual rápido -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
+    
     <!-- React & ReactDOM -->
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
@@ -56,9 +59,21 @@
         const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = window.Recharts || {};
 
         // ==========================================
+        // HELPER: Formateo de Moneda (Acepta centavos)
+        // ==========================================
+        const formatCurrency = (amount) => {
+            const num = parseFloat(amount) || 0;
+            return new Intl.NumberFormat('es-AR', {
+                style: 'currency',
+                currency: 'ARS', // Se cambió de USD a ARS (Pesos Argentinos)
+                minimumFractionDigits: 2,
+            }).format(num);
+        };
+
+        // ==========================================
         // COMPONENTES DE ICONOS
         // ==========================================
-        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
         const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
         const IconStats = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>;
         const IconCheck = () => <svg className="w-8 h-8 text-success" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
@@ -191,7 +206,7 @@
                             </div>
                             <div className="flex items-center gap-2 pt-4">
                                 <input type="checkbox" checked={form.isCC} onChange={e => setForm({...form, isCC: e.target.checked})} className="w-5 h-5 rounded text-primary focus:ring-primary" />
-                                <label className="text-sm">Es Tarjeta</label>
+                                <label className="text-sm">Es Tarjeta de Crédito</label>
                             </div>
                         </div>
                         <button className="bg-primary text-white py-2 rounded font-medium hover:bg-blue-600 transition">Agregar</button>
@@ -244,52 +259,75 @@
         // COMPONENTE: ITEM DE PAGO (Controla su propio estado)
         // ==========================================
         const PaymentItem = ({ item, userId, date, onUpdate, supabaseInstance }) => {
-            // Estado local para evitar re-renderizados masivos al escribir
-            const [localAmount, setLocalAmount] = useState(item.amount_due || '');
+            // Estado local para evitar re-renderizados masivos al escribir. 
+            // Representa el monto que el usuario está definiendo para pagar/actualizar.
+            const [localAmount, setLocalAmount] = useState('');
 
-            // Sincronizar estado local si cambia la prop (ej: cambio de mes)
+            // Sincronizar estado local si cambian las props
             useEffect(() => {
-                setLocalAmount(item.amount_due || '');
-            }, [item.amount_due]);
+                // Si el item está pagado, muestra lo que se pagó. Si no, muestra lo que se debe.
+                const initialValue = item.is_paid ? item.amount_paid : item.amount_due;
+                setLocalAmount(initialValue ? parseFloat(initialValue).toFixed(2) : '0.00');
+            }, [item.amount_due, item.amount_paid, item.is_paid]);
 
             const handleBlur = async () => {
-                // Solo actualizar si el valor cambió
-                if (localAmount != item.amount_due) {
-                    await onUpdate(item, { amount_due: localAmount });
+                const parsedAmount = parseFloat(localAmount);
+                if (isNaN(parsedAmount) || parsedAmount < 0) {
+                    setLocalAmount('0.00');
+                    return;
                 }
+
+                const newAmount = parsedAmount.toFixed(2);
+                setLocalAmount(newAmount);
+                
+                // Si NO es CC y NO está pagado, guardamos el cambio en amount_due (cambio de importe)
+                if (!item.is_credit_card && !item.is_paid && newAmount != parseFloat(item.amount_due).toFixed(2)) {
+                    await onUpdate(item, { amount_due: newAmount });
+                }
+                // Si es CC, el monto se guarda solo al hacer click en Pagar/Marcar Pagado.
+            };
+
+            const handlePartialPay = async () => {
+                const paidAmount = parseFloat(localAmount);
+                if (isNaN(paidAmount) || paidAmount < 0) return;
+
+                // Si es CC, guardamos amount_paid con el valor ingresado y marcamos como pagado.
+                await onUpdate(item, { 
+                    is_paid: true, 
+                    amount_paid: paidAmount.toFixed(2), 
+                });
             };
 
             const togglePaid = async () => {
                 const newStatus = !item.is_paid;
                 
-                // Si es tarjeta y estamos desmarcando pago parcial, etc...
-                // Mantenemos lógica simple: click = pagado con el monto actual
-                
                 if (newStatus === true && item.is_credit_card) {
-                    // Lógica de saldo remanente solo si es tarjeta
-                    const paidAmount = parseFloat(localAmount) || 0;
-                    // Necesitamos saber si el usuario pretende pagar menos
-                    // Como quitamos el prompt, asumimos que el input TIENE el monto a pagar.
-                    // ¿Cómo sabemos el total original? En este modelo simplificado,
-                    // el usuario edita el "Monto" a lo que va a pagar.
-                    // Si quiere mover deuda, lo hace manual o usamos un botón extra?
-                    // Para cumplir "sin confirmación", solo marcamos pagado.
-                    // Agregamos un chequeo silencioso:
-                    
-                    // Si queremos mantener la feature de "pasar al mes siguiente":
-                    // Podríamos comparar con un valor esperado, pero al editar amount_due perdemos la referencia.
-                    // Dejaremos el pago simple como solicitó el usuario "sin confirmación".
+                    // Si es CC, redirigimos la lógica a handlePartialPay para registrar el monto actual del input
+                    handlePartialPay();
+                    return;
                 }
 
-                await onUpdate(item, { is_paid: newStatus, amount_paid: newStatus ? localAmount : 0 });
+                // Pago normal (No CC o desmarcar pago)
+                await onUpdate(item, { 
+                    is_paid: newStatus, 
+                    amount_paid: newStatus ? parseFloat(localAmount).toFixed(2) : 0,
+                });
             };
+            
+            const remainingBalance = parseFloat(item.amount_due) - parseFloat(item.amount_paid);
 
             return (
                 <div className={`card p-4 border-l-4 transition-all ${item.is_paid ? 'border-success opacity-70' : item.skipped ? 'border-gray-300 opacity-50 grayscale' : 'border-primary'}`}>
                     <div className="flex justify-between mb-2">
                         <div>
                             <h3 className={`font-bold ${item.skipped ? 'line-through':''}`}>{item.name}</h3>
-                            <p className="text-xs text-gray-500">Vence: {item.default_due_day}</p>
+                            <p className="text-xs text-gray-500">Vence: Día {item.default_due_day}</p>
+                            {/* Mostrar el carry over si existe */}
+                            {item.carry_over_amount > 0 && (
+                                <p className="text-xs text-orange-500 font-medium mt-1">
+                                    Deuda arrastrada: {formatCurrency(item.carry_over_amount)}
+                                </p>
+                            )}
                         </div>
                         <button onClick={() => onUpdate(item, { skipped: !item.skipped })} className="text-xs bg-gray-100 px-2 py-1 rounded h-fit hover:bg-gray-200">
                             {item.skipped ? 'Activar' : 'Saltar'}
@@ -299,21 +337,41 @@
                     {!item.skipped && (
                         <div className="flex items-end gap-3">
                             <div className="flex-1">
-                                <label className="text-[10px] uppercase font-bold text-gray-400">Importe</label>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">
+                                    Importe a Pagar ({formatCurrency(item.amount_due)})
+                                </label>
                                 <input 
                                     type="number" 
+                                    step="0.01" // Acepta centavos
                                     className="w-full text-lg font-bold border-b border-gray-200 outline-none bg-transparent focus:border-primary"
-                                    placeholder="0" 
+                                    placeholder="0.00" 
                                     value={localAmount}
                                     onChange={(e) => setLocalAmount(e.target.value)}
                                     onBlur={handleBlur}
                                     onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
                                 />
                             </div>
+                            
+                            {item.is_credit_card && !item.is_paid && (
+                                <button 
+                                    onClick={handlePartialPay} 
+                                    className="bg-primary text-white text-xs px-3 py-1.5 rounded-full h-[38px] hover:bg-blue-600 transition-transform active:scale-95"
+                                >
+                                    Pagar
+                                </button>
+                            )}
+
                             <button onClick={togglePaid} className="transition-transform active:scale-95">
                                 {item.is_paid ? <IconCheck /> : <IconCircle />}
                             </button>
                         </div>
+                    )}
+                    
+                    {/* Mostrar saldo pendiente para CC si fue pago parcial */}
+                    {item.is_paid && item.is_credit_card && remainingBalance > 0.01 && (
+                         <p className="text-xs text-red-500 font-medium mt-2 p-1 bg-red-50 rounded">
+                             Saldo pendiente (se arrastra al próximo mes): {formatCurrency(remainingBalance)}
+                         </p>
                     )}
                 </div>
             );
@@ -334,38 +392,102 @@
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
 
+                // 1. Calcular mes y año anterior para buscar deuda arrastrada (carry-over)
+                let prevMonth = month - 1;
+                let prevYear = year;
+                if (prevMonth === 0) {
+                    prevMonth = 12;
+                    prevYear = year - 1;
+                }
+
+                // Obtener datos
                 const { data: services } = await supabaseInstance.from('services').select('*').eq('active', true);
                 const { data: payments } = await supabaseInstance.from('payments').select('*').eq('month', month).eq('year', year);
+                const { data: prevPayments } = await supabaseInstance.from('payments').select('*').eq('month', prevMonth).eq('year', prevYear);
 
                 if (services) {
                     const merged = services.map(svc => {
                         const pay = payments?.find(p => p.service_id === svc.id);
+                        
+                        let currentAmountDue = parseFloat(pay?.amount_due) || 0; // Monto esperado original del mes
+                        let carryOver = 0;
+                        
+                        // Lógica de arrastre de deuda (solo CC)
+                        if (svc.is_credit_card) {
+                            const prevPay = prevPayments?.find(p => p.service_id === svc.id);
+                            
+                            if (prevPay && prevPay.is_paid) {
+                                // Saldo remanente (amount_due - amount_paid)
+                                const remainingBalance = (parseFloat(prevPay.amount_due) || 0) - (parseFloat(prevPay.amount_paid) || 0);
+                                if (remainingBalance > 0.01) { // Usar 0.01 para evitar problemas de float
+                                    carryOver = remainingBalance;
+                                    currentAmountDue = (currentAmountDue) + carryOver; // Sumar la deuda al monto esperado
+                                }
+                            }
+                        }
+
+                        // amount_due es el total a pagar (original + arrastre)
                         return {
                             ...svc,
                             payment_id: pay?.id,
-                            amount_due: pay?.amount_due || 0,
-                            amount_paid: pay?.amount_paid || 0,
+                            amount_due: currentAmountDue.toFixed(2), // Total a pagar, incluyendo carryOver (para CC)
+                            amount_paid: parseFloat(pay?.amount_paid || 0).toFixed(2),
                             is_paid: pay?.is_paid || false,
                             skipped: pay?.skipped || false,
+                            carry_over_amount: carryOver,
+                            is_credit_card: svc.is_credit_card
                         };
                     });
-                    setItems(merged);
+                    
+                    // 2. Lógica de Ordenamiento: Pendientes por fecha (asc), Pagados al final
+                    const sortedItems = merged.sort((a, b) => {
+                        // Pagados van al final (true es mayor que false)
+                        if (a.is_paid !== b.is_paid) {
+                            return a.is_paid ? 1 : -1; // Pagado (1) va al final, No Pagado (-1) va al inicio
+                        }
+
+                        // Ítems sin pagar (o pagados): ordenar por fecha de vencimiento (más cercano primero)
+                        return a.default_due_day - b.default_due_day;
+                    });
+                    
+                    setItems(sortedItems);
                 }
                 setLoading(false);
             };
-
-            const totalDue = items.filter(i => !i.skipped).reduce((acc, c) => acc + Number(c.amount_due), 0);
-            const totalPaid = items.filter(i => !i.skipped && i.is_paid).reduce((acc, c) => acc + Number(c.amount_due), 0); // Usamos amount_due visual
+            
+            // Los cálculos de totales deben usar los valores actuales del estado, que ya tienen el carry-over incluido.
+            const totalDue = items.filter(i => !i.skipped).reduce((acc, c) => acc + parseFloat(c.amount_due), 0);
+            const totalPaid = items.filter(i => !i.skipped && i.is_paid).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0); // Usamos amount_paid real
             const remaining = totalDue - totalPaid;
 
             const updatePayment = async (item, updates) => {
                 const month = date.getMonth() + 1;
                 const year = date.getFullYear();
-                
-                const payload = {
-                    service_id: item.id, user_id: userId, month, year, ...updates
+
+                let payload = {
+                    service_id: item.id,
+                    user_id: userId,
+                    month,
+                    year,
+                    // Campos actuales (los usamos como base)
+                    amount_due: parseFloat(item.amount_due) || 0,
+                    amount_paid: parseFloat(item.amount_paid) || 0,
+                    is_paid: item.is_paid,
+                    skipped: item.skipped,
                 };
-                if (item.payment_id) payload.id = item.payment_id;
+
+                // Sobrescribir con las actualizaciones
+                Object.keys(updates).forEach(key => {
+                    if (key === 'amount_due' || key === 'amount_paid') {
+                        payload[key] = parseFloat(updates[key]) || 0;
+                    } else {
+                        payload[key] = updates[key];
+                    }
+                });
+                
+                // Si estamos marcando como pagado, amount_due debe ser el TOTAL.
+                // Si es un item CC, amount_due debe ser el valor que tiene actualmente (con carry-over) para el cálculo del mes siguiente.
+                // Si es un item NO CC y se está editando amount_due, lo guardamos.
 
                 await supabaseInstance.from('payments').upsert(payload);
                 loadData();
@@ -387,16 +509,16 @@
 
                     <div className="grid grid-cols-3 gap-2 mb-6 text-center">
                         <div className="bg-blue-100 p-2 rounded text-blue-800">
-                            <div className="text-xs uppercase font-bold">Total</div>
-                            <div className="font-bold text-lg">${totalDue}</div>
+                            <div className="text-xs uppercase font-bold">Total Due</div>
+                            <div className="font-bold text-lg">{formatCurrency(totalDue)}</div>
                         </div>
                         <div className="bg-green-100 p-2 rounded text-green-800">
                             <div className="text-xs uppercase font-bold">Pagado</div>
-                            <div className="font-bold text-lg">${totalPaid}</div>
+                            <div className="font-bold text-lg">{formatCurrency(totalPaid)}</div>
                         </div>
                         <div className="bg-red-100 p-2 rounded text-red-800 border border-red-200">
                             <div className="text-xs uppercase font-bold">Resta</div>
-                            <div className="font-bold text-lg">${remaining}</div>
+                            <div className="font-bold text-lg">{formatCurrency(remaining)}</div>
                         </div>
                     </div>
 
@@ -425,11 +547,12 @@
             useEffect(() => {
                 const calc = async () => {
                     const year = new Date().getFullYear();
+                    // Usamos amount_paid ya que es el monto real pagado (importante para CC parciales)
                     const { data: payments } = await supabaseInstance.from('payments').select('month, amount_paid').eq('year', year).eq('is_paid', true);
                     
                     const chartData = Array.from({length: 12}, (_, i) => {
                         const m = i + 1;
-                        const total = payments?.filter(p => p.month === m).reduce((acc, c) => acc + c.amount_paid, 0) || 0;
+                        const total = payments?.filter(p => p.month === m).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0) || 0;
                         return { name: new Date(2024, i, 1).toLocaleString('es-ES', {month:'short'}), total };
                     });
                     setData(chartData);
@@ -445,8 +568,13 @@
                             <BarChart data={data}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                <YAxis axisLine={false} tickLine={false} />
-                                <Tooltip />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    // Usar el formato de moneda en el eje Y
+                                    tickFormatter={(value) => formatCurrency(value)} 
+                                />
+                                <Tooltip formatter={(value) => [formatCurrency(value), 'Total Pagado']} />
                                 <Bar dataKey="total" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
