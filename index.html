@@ -73,7 +73,7 @@
         // ==========================================
         // COMPONENTES DE ICONOS
         // ==========================================
-        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
         const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
         const IconStats = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>;
         const IconCheck = () => <svg className="w-8 h-8 text-success" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
@@ -262,7 +262,7 @@
             // Estado local para evitar re-renderizados masivos al escribir. 
             // Representa el monto que el usuario está definiendo para pagar/actualizar.
             const [localAmount, setLocalAmount] = useState('');
-            // NUEVO: Estado para controlar si es un pago parcial (solo para CC)
+            // Estado para controlar si es un pago parcial (solo para CC)
             const [isPartialPay, setIsPartialPay] = useState(false); 
 
             // Sincronizar estado local si cambian las props
@@ -285,11 +285,12 @@
                 const newAmount = parsedAmount.toFixed(2);
                 setLocalAmount(newAmount);
                 
-                // Si NO es CC y NO está pagado, guardamos el cambio en amount_due (cambio de importe)
-                if (!item.is_credit_card && !item.is_paid && newAmount != parseFloat(item.amount_due).toFixed(2)) {
+                // Si NO es CC y NO está pagado:
+                // Esto maneja la edición del monto a pagar antes de marcarlo como pagado.
+                if (!item.is_credit_card && !item.is_paid && newAmount !== parseFloat(item.amount_due).toFixed(2)) {
                     await onUpdate(item, { amount_due: newAmount });
                 }
-                // Si es CC, solo actualizamos el estado local, el guardado ocurre en togglePaid.
+                // Si es pagado (item.is_paid es true) o si es CC, la edición se maneja solo a través de togglePaid.
             };
 
             const togglePaid = async () => {
@@ -301,18 +302,13 @@
                     if (item.is_credit_card) {
                         if (isPartialPay) {
                             // Pago Parcial (usa localAmount)
-                            // La diferencia se arrastra automáticamente gracias a la lógica en DashboardView/loadData.
-                            // Nota: Si el monto pagado excede el monto total, se registra el pagado (localAmount) 
-                            // y el saldo restante será negativo (no se transfiere, pero el total pagado es correcto).
                         } else {
                             // Pago Total (usa amount_due)
                             amountToPay = parseFloat(item.amount_due);
-                            // Aseguramos que el input refleje el total pagado
                             setLocalAmount(amountToPay.toFixed(2));
                         }
                     } 
                     
-                    // Asegurar que el monto pagado no sea menor que 0
                     amountToPay = Math.max(0, amountToPay);
 
                     await onUpdate(item, { 
@@ -320,11 +316,23 @@
                         amount_paid: amountToPay.toFixed(2), 
                     });
                 } else {
-                    // Desmarcar pago (Esto es lo que permite "sacarle el check")
-                    await onUpdate(item, { 
-                        is_paid: false, 
-                        amount_paid: 0,
-                    });
+                    // LÓGICA DE DESMARCAR (Quitar el check)
+                    // Si el ítem ya tenía un payment_id, lo eliminamos de la base de datos.
+                    if (item.payment_id) {
+                         // Llamada directa a Supabase para eliminar el registro de pago.
+                         // Esto es lo que resuelve el problema de que el check se vuelva a marcar.
+                         await supabaseInstance.from('payments').delete().eq('id', item.payment_id);
+                         
+                         // Forzar el refresh después de la eliminación.
+                         // Usamos onUpdate sin argumentos para solo forzar el refresco de la lista.
+                         await onUpdate({}, {}); 
+                    } else {
+                        // Si no tiene payment_id (caso raro), simplemente actualizamos localmente.
+                        await onUpdate(item, { 
+                            is_paid: false, 
+                            amount_paid: 0,
+                        });
+                    }
                 }
             };
             
@@ -421,8 +429,9 @@
             const [date, setDate] = useState(new Date());
             const [items, setItems] = useState([]);
             const [loading, setLoading] = useState(true);
+            const [refreshKey, setRefreshKey] = useState(0); // Estado para forzar refresco
 
-            useEffect(() => { loadData() }, [date]);
+            useEffect(() => { loadData() }, [date, refreshKey]); // Dependencia del refreshKey
 
             const loadData = async () => {
                 setLoading(true);
@@ -466,7 +475,7 @@
                         // amount_due es el total a pagar (original + arrastre)
                         return {
                             ...svc,
-                            payment_id: pay?.id,
+                            payment_id: pay?.id, // ID del registro de pago para eliminación
                             amount_due: currentAmountDue.toFixed(2), // Total a pagar, incluyendo carryOver (para CC)
                             amount_paid: parseFloat(pay?.amount_paid || 0).toFixed(2),
                             is_paid: pay?.is_paid || false,
@@ -522,12 +531,54 @@
                     }
                 });
                 
-                // Si estamos marcando como pagado, amount_due debe ser el TOTAL.
-                // Si es un item CC, amount_due debe ser el valor que tiene actualmente (con carry-over) para el cálculo del mes siguiente.
-                // Si es un item NO CC y se está editando amount_due, lo guardamos.
+                // 1. Actualización Optimista + Reordenamiento Local
+                // Esto asegura que el ítem cambie de is_paid: true a false inmediatamente y se reubique.
+                setItems(prevItems => 
+                    prevItems.map(i => 
+                        i.id === item.id 
+                            ? { 
+                                ...i, 
+                                is_paid: payload.is_paid, // Usa el nuevo estado
+                                amount_paid: payload.amount_paid, // Usa el nuevo monto pagado
+                              } 
+                            : i
+                    ).sort((a, b) => { // Re-sort inmediatamente localmente
+                        if (a.is_paid !== b.is_paid) {
+                            return a.is_paid ? 1 : -1;
+                        }
+                        return a.default_due_day - b.default_due_day;
+                    })
+                );
 
-                await supabaseInstance.from('payments').upsert(payload);
-                loadData();
+                // 2. Manejo de la base de datos: Upsert si es pagado, o si se actualiza solo amount_due (antes del pago)
+                if (item.payment_id && updates.is_paid === false) {
+                     // Si la actualización es una eliminación (togglePaid llamó directamente a delete), solo forzamos el refresh.
+                     // Si llegamos aquí con item.payment_id, es que solo se actualizó el monto antes del pago.
+                } else if (item.payment_id && updates.is_paid === true) {
+                     // Si es un pago existente, hacemos update
+                    await supabaseInstance.from('payments').update(payload).eq('id', item.payment_id);
+                } else if (!item.payment_id && updates.is_paid === true) {
+                    // Si es un pago nuevo, hacemos insert
+                    const { data: inserted } = await supabaseInstance.from('payments').insert(payload).select();
+                     // Si insertamos un nuevo pago, necesitamos el ID para futuras eliminaciones/actualizaciones.
+                    if (inserted && inserted.length > 0) {
+                         setItems(prevItems => 
+                             prevItems.map(i => i.id === item.id ? { ...i, payment_id: inserted[0].id } : i)
+                         );
+                    }
+                } else if (updates.amount_due && !item.is_paid) {
+                    // Si solo actualiza el monto pendiente (pre-pago)
+                    // Buscamos si existe un registro de pago pendiente, si no, lo creamos.
+                    const existingPay = payments?.find(p => p.service_id === item.id);
+                    if (existingPay) {
+                        await supabaseInstance.from('payments').update(payload).eq('id', existingPay.id);
+                    } else {
+                        await supabaseInstance.from('payments').insert(payload);
+                    }
+                }
+                
+                // 3. Failsafe Full Data Reload
+                setRefreshKey(prev => prev + 1);
             };
 
             const changeMonth = (delta) => {
