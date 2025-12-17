@@ -8,20 +8,20 @@
     <!-- FAVICON: Dinero con alas para un identificador visual rápido -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
     
-    <!-- React & ReactDOM -->
+    <!-- 1. REACT Y REACTDOM DEBEN CARGARSE PRIMERO -->
     <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     
-    <!-- Dependencias UI -->
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 2. DEPENDENCIAS PRINCIPALES (que no dependen de React o Babel) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- CORRECCIÓN: Usamos unpkg versión específica UMD -->
     <script src="https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
     
-    <!-- Gráficos -->
+    <!-- 3. DEPENDENCIAS DE REACT (prop-types debe ir antes de Recharts) -->
+    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+
+    <!-- 4. BABEL STANDALONE (Debe ser la última antes de tu código) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -65,7 +65,7 @@
             const num = parseFloat(amount) || 0;
             return new Intl.NumberFormat('es-AR', {
                 style: 'currency',
-                currency: 'ARS', // Se cambió de USD a ARS (Pesos Argentinos)
+                currency: 'ARS', // Pesos Argentinos
                 minimumFractionDigits: 2,
             }).format(num);
         };
@@ -73,7 +73,7 @@
         // ==========================================
         // COMPONENTES DE ICONOS
         // ==========================================
-        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
+        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>;
         const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
         const IconStats = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>;
         const IconCheck = () => <svg className="w-8 h-8 text-success" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
@@ -262,13 +262,18 @@
             // Estado local para evitar re-renderizados masivos al escribir. 
             // Representa el monto que el usuario está definiendo para pagar/actualizar.
             const [localAmount, setLocalAmount] = useState('');
+            // NUEVO: Estado para controlar si es un pago parcial (solo para CC)
+            const [isPartialPay, setIsPartialPay] = useState(false); 
 
             // Sincronizar estado local si cambian las props
             useEffect(() => {
-                // Si el item está pagado, muestra lo que se pagó. Si no, muestra lo que se debe.
+                // Si el item está pagado, muestra lo que se pagó. 
+                // Si no, muestra lo que se debe (amount_due).
                 const initialValue = item.is_paid ? item.amount_paid : item.amount_due;
                 setLocalAmount(initialValue ? parseFloat(initialValue).toFixed(2) : '0.00');
-            }, [item.amount_due, item.amount_paid, item.is_paid]);
+                // Al cambiar de ítem o al iniciar, resetear el check de pago parcial.
+                setIsPartialPay(false); 
+            }, [item.amount_due, item.amount_paid, item.is_paid, item.id]); // Added item.id dependency
 
             const handleBlur = async () => {
                 const parsedAmount = parseFloat(localAmount);
@@ -284,34 +289,43 @@
                 if (!item.is_credit_card && !item.is_paid && newAmount != parseFloat(item.amount_due).toFixed(2)) {
                     await onUpdate(item, { amount_due: newAmount });
                 }
-                // Si es CC, el monto se guarda solo al hacer click en Pagar/Marcar Pagado.
-            };
-
-            const handlePartialPay = async () => {
-                const paidAmount = parseFloat(localAmount);
-                if (isNaN(paidAmount) || paidAmount < 0) return;
-
-                // Si es CC, guardamos amount_paid con el valor ingresado y marcamos como pagado.
-                await onUpdate(item, { 
-                    is_paid: true, 
-                    amount_paid: paidAmount.toFixed(2), 
-                });
+                // Si es CC, solo actualizamos el estado local, el guardado ocurre en togglePaid.
             };
 
             const togglePaid = async () => {
                 const newStatus = !item.is_paid;
                 
-                if (newStatus === true && item.is_credit_card) {
-                    // Si es CC, redirigimos la lógica a handlePartialPay para registrar el monto actual del input
-                    handlePartialPay();
-                    return;
-                }
+                if (newStatus === true) {
+                    let amountToPay = parseFloat(localAmount);
 
-                // Pago normal (No CC o desmarcar pago)
-                await onUpdate(item, { 
-                    is_paid: newStatus, 
-                    amount_paid: newStatus ? parseFloat(localAmount).toFixed(2) : 0,
-                });
+                    if (item.is_credit_card) {
+                        if (isPartialPay) {
+                            // Pago Parcial (usa localAmount)
+                            // La diferencia se arrastra automáticamente gracias a la lógica en DashboardView/loadData.
+                            // Nota: Si el monto pagado excede el monto total, se registra el pagado (localAmount) 
+                            // y el saldo restante será negativo (no se transfiere, pero el total pagado es correcto).
+                        } else {
+                            // Pago Total (usa amount_due)
+                            amountToPay = parseFloat(item.amount_due);
+                            // Aseguramos que el input refleje el total pagado
+                            setLocalAmount(amountToPay.toFixed(2));
+                        }
+                    } 
+                    
+                    // Asegurar que el monto pagado no sea menor que 0
+                    amountToPay = Math.max(0, amountToPay);
+
+                    await onUpdate(item, { 
+                        is_paid: true, 
+                        amount_paid: amountToPay.toFixed(2), 
+                    });
+                } else {
+                    // Desmarcar pago (Esto es lo que permite "sacarle el check")
+                    await onUpdate(item, { 
+                        is_paid: false, 
+                        amount_paid: 0,
+                    });
+                }
             };
             
             const remainingBalance = parseFloat(item.amount_due) - parseFloat(item.amount_paid);
@@ -335,36 +349,59 @@
                     </div>
                     
                     {!item.skipped && (
-                        <div className="flex items-end gap-3">
-                            <div className="flex-1">
-                                <label className="text-[10px] uppercase font-bold text-gray-400">
-                                    Importe a Pagar ({formatCurrency(item.amount_due)})
-                                </label>
-                                <input 
-                                    type="number" 
-                                    step="0.01" // Acepta centavos
-                                    className="w-full text-lg font-bold border-b border-gray-200 outline-none bg-transparent focus:border-primary"
-                                    placeholder="0.00" 
-                                    value={localAmount}
-                                    onChange={(e) => setLocalAmount(e.target.value)}
-                                    onBlur={handleBlur}
-                                    onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-                                />
-                            </div>
-                            
+                        <>
                             {item.is_credit_card && !item.is_paid && (
-                                <button 
-                                    onClick={handlePartialPay} 
-                                    className="bg-primary text-white text-xs px-3 py-1.5 rounded-full h-[38px] hover:bg-blue-600 transition-transform active:scale-95"
-                                >
-                                    Pagar
-                                </button>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isPartialPay} 
+                                        onChange={e => {
+                                            setIsPartialPay(e.target.checked);
+                                            // Al cambiar a pago total (uncheck), el input debe reflejar el amount_due
+                                            if (!e.target.checked) {
+                                                setLocalAmount(parseFloat(item.amount_due).toFixed(2));
+                                            }
+                                        }} 
+                                        className="w-4 h-4 rounded text-primary focus:ring-primary" 
+                                        id={`partial-pay-${item.id}`}
+                                    />
+                                    <label htmlFor={`partial-pay-${item.id}`} className="text-sm text-gray-600">Pago Parcial</label>
+                                </div>
                             )}
 
-                            <button onClick={togglePaid} className="transition-transform active:scale-95">
-                                {item.is_paid ? <IconCheck /> : <IconCircle />}
-                            </button>
-                        </div>
+                            <div className="flex items-end gap-3">
+                                <div className="flex-1">
+                                    {/* Etiqueta eliminada, solo queda el monto total a pagar como referencia */}
+                                    <span className="text-xs uppercase font-bold text-gray-400">
+                                        Total Adeudado: {formatCurrency(item.amount_due)}
+                                    </span>
+                                    <input 
+                                        type="number" 
+                                        step="0.01" // Acepta centavos
+                                        className="w-full text-lg font-bold border-b border-gray-200 outline-none bg-transparent focus:border-primary"
+                                        placeholder="0.00" 
+                                        value={localAmount}
+                                        onChange={(e) => setLocalAmount(e.target.value)}
+                                        onBlur={handleBlur}
+                                        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+                                        // Si es CC y no es pago parcial, el input no debe ser editable, ya que el botón hará el pago total.
+                                        disabled={item.is_credit_card && !isPartialPay && !item.is_paid}
+                                    />
+                                </div>
+                                
+                                <button onClick={togglePaid} className="transition-transform active:scale-95">
+                                    {item.is_paid ? <IconCheck /> : (
+                                        item.is_credit_card && !isPartialPay ? (
+                                            // Pagar Total para CC
+                                            <span className="bg-primary text-white text-xs px-3 py-1.5 rounded-full h-[38px] flex items-center justify-center font-bold hover:bg-blue-600 transition-transform">Pagar Total</span>
+                                        ) : (
+                                            // Pagar Parcial CC o Pago Simple
+                                            <IconCircle />
+                                        )
+                                    )}
+                                </button>
+                            </div>
+                        </>
                     )}
                     
                     {/* Mostrar saldo pendiente para CC si fue pago parcial */}
