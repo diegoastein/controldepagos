@@ -2,666 +2,613 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Pagos Familiar</title>
-    
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
-    
-    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Platita - Mi Control de Finanzas</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
-    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#3b82f6',
-                        secondary: '#64748b',
-                        success: '#22c55e',
-                        danger: '#ef4444',
-                    }
-                }
-            }
-        }
-    </script>
     
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore-compat.js"></script>
+
     <style>
-        body { background-color: #f1f5f9; font-family: 'Segoe UI', sans-serif; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .fade-in { animation: fadeIn 0.3s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        /* Ocultar flechas de input number */
-        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        body { background-color: #f8fafc; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; color: #1e293b; }
+        svg { width: 1.5rem; height: 1.5rem; display: inline-block; }
+        .glass-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(0,0,0,0.05); }
+        .card-shadow { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02); }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        input:focus { outline: none; border-color: #0f172a; }
+        
+        @media (min-width: 768px) {
+            .main-container { max-width: 1024px; margin: 0 auto; }
+            .desktop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem; }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // Configuración de Supabase
-        const SUPABASE_URL = 'https://sgqmpshjycbprifpxztl.supabase.co'; 
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNncW1wc2hqeWNicHJpZnB4enRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5MTYwNjQsImV4cCI6MjA4MTQ5MjA2NH0.mhae-9WuVGlXZwKlqUvplWGtlwbiEubSWo5MELnyWQk';
-        
-        const { useState, useEffect, useRef } = React;
-        const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } = window.Recharts || {};
+        const { useState, useEffect, useMemo, useRef } = React;
 
-        const COLORS = ['#3b82f6', '#22c55e', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f97316', '#6366f1'];
-
-        const formatCurrency = (amount) => {
-            const num = parseFloat(amount) || 0;
-            return new Intl.NumberFormat('es-AR', {
-                style: 'currency',
-                currency: 'ARS',
-                minimumFractionDigits: 2,
-            }).format(num);
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyB_iAkA30kQKiavpJnB0zTpRXUr7aCzA7k",
+            authDomain: "platita-3fcc5.firebaseapp.com",
+            projectId: "platita-3fcc5",
+            storageBucket: "platita-3fcc5.firebasestorage.app",
+            messagingSenderId: "93396692454",
+            appId: "1:93396692454:web:acc81d633c3dd3ae27fa27"
         };
 
-        const IconDashboard = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2V6zM4 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 0 012-2h2a2 0 012 2v2a2 0 01-2 2h-2a2 0 01-2-2v-2z" /></svg>;
-        const IconServices = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 v2M7 7h10" /></svg>;
-        const IconStats = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>;
-        const IconCheck = () => <svg className="w-8 h-8 text-success" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>;
-        const IconCircle = () => <svg className="w-8 h-8 text-gray-300 hover:text-primary transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /></svg>;
-        const IconTrash = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
-        const IconEdit = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
-        const IconSave = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>;
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'mi-app-finanzas-v1';
 
-        const AuthView = ({ supabaseInstance }) => {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [loading, setLoading] = useState(false);
-            const [msg, setMsg] = useState('');
+        const DEFAULT_CATEGORIES = ["Hogar", "Servicios", "Impuestos", "Salud", "Educación", "Tarjetas", "Ocio", "Comida", "General"];
+
+        const Icons = {
+            Wallet: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>,
+            Calendar: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+            Shopping: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
+            Check: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>,
+            Logout: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>,
+            ChevronLeft: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>,
+            ChevronRight: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>,
+            Analysis: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2v2m3 10v-3a2 2 0 012-2h2a2 2 0 012 2v3m2 0h-5m-9 0H3m9 0a9 9 0 0118 0v1H3v-1z" /></svg>,
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+            Copy: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>,
+            Close: () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        };
+
+        const formatCurrency = (val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val || 0);
+        const parseLocaleNumber = (str) => {
+            if (!str) return 0;
+            const clean = str.toString().replace(/\./g, '').replace(',', '.');
+            return parseFloat(clean) || 0;
+        };
+
+        const App = () => {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [view, setView] = useState('dashboard');
+            const [items, setItems] = useState([]);
+            const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+            const [navDate, setNavDate] = useState(new Date());
+            const [hideBalance, setHideBalance] = useState(false);
+            const [loginData, setLoginData] = useState({ email: '', password: '' });
+            const [authError, setAuthError] = useState(null);
+
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged(u => { setUser(u); setLoading(false); });
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!user) return;
+                const path = `artifacts/${appId}/users/${user.uid}/transactions`;
+                const unsubscribe = db.collection(path).onSnapshot(snap => {
+                    setItems(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                
+                db.collection(`artifacts/${appId}/users/${user.uid}/settings`).doc('categories').get().then(doc => {
+                    if (doc.exists) setCategories([...DEFAULT_CATEGORIES, ...doc.data().custom]);
+                });
+                
+                return () => unsubscribe();
+            }, [user]);
+
+            const stats = useMemo(() => {
+                const month = navDate.getMonth();
+                const year = navDate.getFullYear();
+                const currentMonthItems = items.filter(item => {
+                    const d = item.date ? new Date(item.date) : new Date();
+                    return d.getMonth() === month && d.getFullYear() === year;
+                });
+
+                const income = currentMonthItems.filter(i => i.type === 'income').reduce((a, c) => a + (parseFloat(c.amount) || 0), 0);
+                const recPaid = currentMonthItems.filter(i => i.type === 'recurring' && i.paid).reduce((a, c) => a + (c.paymentType === 'partial' ? (parseFloat(c.paidAmount) || 0) : (parseFloat(c.amount) || 0)), 0);
+                const recPending = currentMonthItems.filter(i => i.type === 'recurring' && !i.paid).reduce((a, c) => a + (parseFloat(c.amount) || 0), 0);
+                const daily = currentMonthItems.filter(i => i.type === 'daily').reduce((a, c) => a + (parseFloat(c.amount) || 0), 0);
+                
+                const upcoming = currentMonthItems.filter(i => i.type === 'recurring' && !i.paid).sort((a,b) => (a.dueDay || 99) - (b.dueDay || 99)).slice(0, 5);
+
+                return { income, recPaid, recPending, daily, balance: income - recPaid - daily, totalSpent: recPaid + daily, currentMonthItems, upcoming };
+            }, [items, navDate]);
 
             const handleLogin = async (e) => {
                 e.preventDefault();
                 setLoading(true);
-                const { data, error } = await supabaseInstance.auth.signInWithPassword({ email, password });
-                if (error) {
-                    const { error: upError } = await supabaseInstance.auth.signUp({ email, password });
-                    if (upError) setMsg('Error: ' + error.message);
-                    else setMsg('Cuenta creada! Revisa tu email o inicia sesión.');
+                try {
+                    await auth.signInWithEmailAndPassword(loginData.email, loginData.password);
+                } catch (e) {
+                    setAuthError("Email o contraseña incorrectos");
+                    setLoading(false);
                 }
-                setLoading(false);
+            };
+
+            const addItem = async (data) => {
+                const path = `artifacts/${appId}/users/${user.uid}/transactions`;
+                await db.collection(path).add({
+                    ...data,
+                    date: data.date || navDate.toISOString(),
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            };
+
+            const updateItem = async (id, data) => {
+                const path = `artifacts/${appId}/users/${user.uid}/transactions`;
+                await db.collection(path).doc(id).update(data);
+            };
+
+            const toggleItem = async (item, pType = 'total', pAmount = 0) => {
+                const path = `artifacts/${appId}/users/${user.uid}/transactions`;
+                const docRef = db.collection(path).doc(item.id);
+                if (item.paid) {
+                    await docRef.update({ paid: false, paymentType: null, paidAmount: 0 });
+                } else {
+                    const isPartial = pType === 'partial';
+                    await docRef.update({ paid: true, paymentType: pType, paidAmount: isPartial ? pAmount : item.amount });
+                    
+                    if (isPartial && (item.name.toLowerCase().includes('visa') || item.name.toLowerCase().includes('master'))) {
+                        const remainder = item.amount - pAmount;
+                        if (remainder > 0) {
+                            const nextMonth = new Date(navDate);
+                            nextMonth.setMonth(nextMonth.getMonth() + 1);
+                            await db.collection(path).add({
+                                name: `Saldo Pendiente ${item.name}`,
+                                amount: remainder,
+                                type: 'recurring',
+                                category: 'Tarjetas',
+                                paid: false,
+                                dueDay: item.dueDay || 1,
+                                date: nextMonth.toISOString()
+                            });
+                        }
+                    }
+                }
+            };
+
+            const copyPreviousMonth = async () => {
+                const prevDate = new Date(navDate);
+                prevDate.setMonth(prevDate.getMonth() - 1);
+                const prevMonth = prevDate.getMonth();
+                const prevYear = prevDate.getFullYear();
+
+                const prevItems = items.filter(item => {
+                    const d = new Date(item.date);
+                    return d.getMonth() === prevMonth && d.getFullYear() === prevYear && (item.type === 'income' || item.type === 'recurring');
+                });
+
+                const path = `artifacts/${appId}/users/${user.uid}/transactions`;
+                const batch = db.batch();
+                prevItems.forEach(item => {
+                    const newDoc = db.collection(path).doc();
+                    batch.set(newDoc, {
+                        ...item,
+                        id: undefined,
+                        amount: 0,
+                        paid: item.type === 'income',
+                        paymentType: null,
+                        paidAmount: 0,
+                        date: navDate.toISOString(),
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                });
+                await batch.commit();
+            };
+
+            const addCategory = async (cat) => {
+                if (!cat || categories.includes(cat)) return;
+                const newCats = [...categories, cat];
+                setCategories(newCats);
+                const custom = newCats.filter(c => !DEFAULT_CATEGORIES.includes(c));
+                await db.collection(`artifacts/${appId}/users/${user.uid}/settings`).doc('categories').set({ custom });
+            };
+
+            const removeCategory = async (cat) => {
+                if (DEFAULT_CATEGORIES.includes(cat)) return;
+                const newCats = categories.filter(c => c !== cat);
+                setCategories(newCats);
+                const custom = newCats.filter(c => !DEFAULT_CATEGORIES.includes(c));
+                await db.collection(`artifacts/${appId}/users/${user.uid}/settings`).doc('categories').set({ custom });
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center bg-white"><div className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div></div>;
+
+            if (!user) return (
+                <div className="flex flex-col h-screen items-center justify-center bg-white p-8 animate-fade-in">
+                    <div className="bg-slate-900 text-white p-5 rounded-[2.5rem] mb-6 shadow-2xl"><Icons.Wallet /></div>
+                    <h1 className="text-4xl font-black text-slate-900 mb-2 text-center tracking-tighter leading-none">Platita</h1>
+                    <p className="text-slate-500 mb-10 text-center text-sm font-medium">Gestión inteligente de tus gastos.</p>
+                    <form onSubmit={handleLogin} className="w-full max-w-xs space-y-4">
+                        <input type="email" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none" placeholder="Email" value={loginData.email} onChange={e=>setLoginData({...loginData, email: e.target.value})} />
+                        <input type="password" required className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none" placeholder="Contraseña" value={loginData.password} onChange={e=>setLoginData({...loginData, password: e.target.value})} />
+                        {authError && <p className="text-rose-500 text-xs font-bold text-center">{authError}</p>}
+                        <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black text-lg shadow-xl active:scale-95 transition-transform">Ingresar</button>
+                    </form>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen pb-32 bg-slate-50 animate-fade-in relative">
+                    <header className="bg-white border-b border-slate-100 md:rounded-b-[3rem] shadow-sm mb-6">
+                        <div className="main-container p-5">
+                            <div className="flex items-center justify-between mb-6">
+                                <h1 className="text-2xl md:text-3xl font-black text-slate-900 flex items-center gap-2"><span className="bg-slate-900 text-white px-2 py-1 rounded-xl">P</span> Platita</h1>
+                                <button onClick={() => auth.signOut()} className="text-slate-300 hover:text-rose-500 transition-colors flex items-center gap-2 text-sm font-bold">
+                                    <span className="hidden md:inline">Cerrar Sesión</span> <Icons.Logout />
+                                </button>
+                            </div>
+                            
+                            <div className="md:grid md:grid-cols-2 md:gap-8 items-center">
+                                <div className="mb-6 md:mb-0">
+                                    <div className="flex items-center justify-between bg-slate-100 p-1 rounded-full mb-5">
+                                        <button onClick={() => setNavDate(new Date(navDate.setMonth(navDate.getMonth()-1)))} className="p-2 hover:bg-white rounded-full transition-all"><Icons.ChevronLeft /></button>
+                                        <span className="text-[12px] md:text-sm font-black text-slate-700 uppercase tracking-widest">{navDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</span>
+                                        <button onClick={() => setNavDate(new Date(navDate.setMonth(navDate.getMonth()+1)))} className="p-2 hover:bg-white rounded-full transition-all"><Icons.ChevronRight /></button>
+                                    </div>
+
+                                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-xl relative overflow-hidden flex flex-col items-center">
+                                        <button onClick={() => setHideBalance(!hideBalance)} className="absolute top-4 right-6 text-slate-500 hover:text-white p-2 text-[10px] font-bold uppercase tracking-widest transition-all">
+                                            {hideBalance ? "Mostrar" : "Ocultar"}
+                                        </button>
+                                        <p className="text-slate-400 text-[10px] md:text-xs font-black uppercase tracking-widest mb-1">Saldo Disponible</p>
+                                        <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight">{hideBalance ? "$ ••••••" : formatCurrency(stats.balance)}</h2>
+                                        <div className="grid grid-cols-2 gap-8 border-t border-white/10 pt-6 w-full text-center">
+                                            <div><p className="text-slate-500 text-[10px] uppercase font-black mb-1">Ingresos</p><p className="text-emerald-400 font-black text-lg">{hideBalance ? "---" : formatCurrency(stats.income)}</p></div>
+                                            <div><p className="text-slate-500 text-[10px] uppercase font-black mb-1">Egresos</p><p className="text-rose-400 font-black text-lg">{hideBalance ? "---" : formatCurrency(stats.totalSpent)}</p></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="hidden md:block">
+                                    <AnalysisView currentMonthItems={stats.currentMonthItems} stats={stats} isSmall />
+                                </div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="main-container px-5 space-y-8">
+                        {view === 'dashboard' && (
+                            <div className="space-y-6">
+                                <div className="flex justify-center">
+                                    <button onClick={copyPreviousMonth} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg hover:bg-slate-800 transition-all active:scale-95">
+                                        <Icons.Copy /> Copiar conceptos anteriores
+                                    </button>
+                                </div>
+
+                                <div className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"><Icons.Calendar /></div>
+                                        <div className="flex-1">
+                                            <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Pendientes Fijos</p>
+                                            <p className="text-3xl font-black text-slate-800">{formatCurrency(stats.recPending)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {stats.upcoming?.length > 0 ? stats.upcoming.map(item => (
+                                            <div key={item.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                <span className="text-xs font-black text-slate-600 uppercase truncate mr-2">{item.name}</span>
+                                                <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-lg text-[10px] font-black">Día {item.dueDay}</span>
+                                            </div>
+                                        )) : <p className="text-slate-400 text-xs font-medium italic">No hay pagos pendientes.</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'analysis' && <AnalysisView currentMonthItems={stats.currentMonthItems} stats={stats} />}
+                        
+                        {(view === 'income' || view === 'recurring' || view === 'daily') && (
+                            <ListView 
+                                title={view === 'income' ? 'Ingresos / Cobros' : view === 'recurring' ? 'Gastos Fijos' : 'Gastos Diarios'}
+                                type={view}
+                                items={stats.currentMonthItems.filter(i => i.type === view)}
+                                categories={categories}
+                                onAdd={addItem}
+                                onUpdate={updateItem}
+                                onToggle={toggleItem}
+                                onDelete={id => db.collection(`artifacts/${appId}/users/${user.uid}/transactions`).doc(id).delete()}
+                                accent={view === 'income' ? 'emerald' : view === 'recurring' ? 'amber' : 'rose'}
+                                stats={stats}
+                                navDate={navDate}
+                            />
+                        )}
+
+                        {view === 'settings' && (
+                            <div className="bg-white p-8 md:p-12 rounded-[3rem] shadow-sm border border-slate-100 space-y-8 animate-fade-in">
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Configuración</h2>
+                                <div className="space-y-4">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tus Etiquetas</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {categories.map(c => (
+                                            <span key={c} className="group relative bg-slate-50 border border-slate-100 px-4 py-2 rounded-full text-xs font-bold text-slate-600 shadow-sm flex items-center gap-2">
+                                                {c}
+                                                {!DEFAULT_CATEGORIES.includes(c) && (
+                                                    <button onClick={() => removeCategory(c)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                                                        <Icons.Close />
+                                                    </button>
+                                                )}
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <form onSubmit={e => { e.preventDefault(); addCategory(e.target.cat.value); e.target.reset(); }} className="flex gap-2 max-w-sm pt-2">
+                                        <input name="cat" className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm" placeholder="Nueva etiqueta..." />
+                                        <button className="bg-slate-900 text-white px-6 rounded-2xl font-black shadow-lg hover:bg-slate-800 transition-all">+</button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    <nav className="fixed bottom-0 left-0 right-0 glass-nav z-50">
+                        <div className="main-container flex justify-around p-4 safe-area-bottom">
+                            <NavTab active={view === 'dashboard'} onClick={() => setView('dashboard')} icon={<Icons.Wallet />} label="Inicio" />
+                            <NavTab active={view === 'income'} onClick={() => setView('income')} icon={<Icons.Plus />} label="Cobros" />
+                            <NavTab active={view === 'recurring'} onClick={() => setView('recurring')} icon={<Icons.Calendar />} label="Fijos" />
+                            <NavTab active={view === 'daily'} onClick={() => setView('daily')} icon={<Icons.Shopping />} label="Diarios" />
+                            <NavTab active={view === 'analysis'} onClick={() => setView('analysis')} icon={<Icons.Analysis />} label="Análisis" />
+                            <NavTab active={view === 'settings'} onClick={() => setView('settings')} icon={<Icons.Settings />} label="Config" />
+                        </div>
+                    </nav>
+                </div>
+            );
+        };
+
+        const NavTab = ({ active, onClick, icon, label }) => (
+            <button onClick={onClick} className={`p-3 rounded-2xl flex flex-col items-center gap-1 transition-all md:px-6 md:hover:bg-slate-50 ${active ? 'bg-slate-900 text-white shadow-lg scale-105' : 'text-slate-400'}`}>
+                {icon} <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest">{label}</span>
+            </button>
+        );
+
+        const ListView = ({ title, type, items, categories, onAdd, onUpdate, onToggle, onDelete, accent, stats, navDate }) => {
+            const [newName, setNewName] = useState('');
+            const [newAmount, setNewAmount] = useState('');
+            const [newCat, setNewCat] = useState('General');
+            const [newDueDay, setNewDueDay] = useState('1');
+            const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
+
+            const handleAdd = (e) => {
+                e.preventDefault();
+                if (!newName) return;
+                
+                const data = { 
+                    name: newName, 
+                    amount: parseLocaleNumber(newAmount), 
+                    category: newCat, 
+                    type, 
+                    paid: type === 'income' 
+                };
+
+                if (type === 'recurring') {
+                    data.dueDay = parseInt(newDueDay) || 1;
+                    // Aseguramos que la fecha sea del mes actual en el calendario
+                    const d = new Date(navDate);
+                    d.setDate(data.dueDay);
+                    data.date = d.toISOString();
+                } else if (type === 'daily') {
+                    data.date = new Date(newDate).toISOString();
+                }
+
+                onAdd(data);
+                setNewName(''); setNewAmount('');
             };
 
             return (
-                <div className="min-h-screen flex items-center justify-center p-4">
-                    <div className="card p-8 w-full max-w-md">
-                        <h1 className="text-2xl font-bold text-center text-primary mb-6">Mis Pagos</h1>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <input type="email" placeholder="Email" className="w-full p-3 border rounded-lg" value={email} onChange={e=>setEmail(e.target.value)} required />
-                            <input type="password" placeholder="Contraseña" className="w-full p-3 border rounded-lg" value={password} onChange={e=>setPassword(e.target.value)} required />
-                            <button disabled={loading} className="w-full bg-primary text-white p-3 rounded-lg font-bold hover:bg-blue-600 transition">
-                                {loading ? 'Cargando...' : 'Entrar / Registrarse'}
-                            </button>
-                            {msg && <p className="text-center text-sm text-gray-500 mt-2">{msg}</p>}
-                        </form>
+                <div className="space-y-6 animate-fade-in">
+                    {type === 'daily' && (
+                        <div className="bg-rose-50 border border-rose-100 p-6 md:p-8 rounded-[2.5rem] flex items-center gap-6 shadow-sm mb-2">
+                            <div className="w-14 h-14 bg-rose-500 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-lg"><Icons.Shopping /></div>
+                            <div>
+                                <p className="text-rose-400 text-[10px] font-black uppercase tracking-widest mb-1">Gasto Diario del Mes</p>
+                                <p className="text-3xl md:text-4xl font-black text-rose-700 tracking-tight">{formatCurrency(stats.daily)}</p>
+                            </div>
+                        </div>
+                    )}
+                    <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">{title}</h2>
+                    <form onSubmit={handleAdd} className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-4">
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <input className="flex-[2] p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium" placeholder="Descripción" value={newName} onChange={e=>setNewName(e.target.value)} />
+                            <div className="flex-1 flex gap-2">
+                                <input className="flex-1 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black" placeholder="$ 0,00" value={newAmount} onChange={e=>setNewAmount(e.target.value)} />
+                                {type === 'recurring' && (
+                                    <input type="number" min="1" max="31" className="w-20 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-black text-center" placeholder="Día" value={newDueDay} onChange={e=>setNewDueDay(e.target.value)} title="Día de vencimiento" />
+                                )}
+                                <button className="bg-slate-900 text-white px-8 rounded-2xl font-black shadow-lg hover:bg-slate-800 transition-all"><Icons.Plus /></button>
+                            </div>
+                        </div>
+                        {type === 'daily' && (
+                            <div className="flex flex-col gap-2">
+                                <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Fecha del Gasto</label>
+                                <input type="date" className="w-full md:w-auto p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-medium" value={newDate} onChange={e=>setNewDate(e.target.value)} />
+                            </div>
+                        )}
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2">
+                            {categories.map(cat => (
+                                <button key={cat} type="button" onClick={() => setNewCat(cat)} className={`px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${newCat === cat ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'}`}>{cat}</button>
+                            ))}
+                        </div>
+                    </form>
+                    <div className="desktop-grid">
+                        {items.sort((a,b) => {
+                            if (type === 'recurring') return (a.dueDay || 0) - (b.dueDay || 0);
+                            return new Date(b.date) - new Date(a.date);
+                        }).map(item => <ItemCard key={item.id} item={item} onUpdate={onUpdate} onToggle={onToggle} onDelete={onDelete} accent={accent} />)}
                     </div>
                 </div>
             );
         };
 
-        const ServicesView = ({ userId, supabaseInstance, services, onRefresh }) => {
-            const [form, setForm] = useState({ name: '', day: 10, isCC: false });
-            const [editingId, setEditingId] = useState(null);
-            const [editForm, setEditForm] = useState({ name: '', default_due_day: 10, is_credit_card: false });
+        const ItemCard = ({ item, onUpdate, onToggle, onDelete, accent }) => {
+            const [isEditing, setIsEditing] = useState(false);
+            const [editName, setEditName] = useState(item.name);
+            const [editAmount, setEditAmount] = useState(item.amount);
+            const [editDate, setEditDate] = useState(item.date ? item.date.split('T')[0] : '');
+            const [editDueDay, setEditDueDay] = useState(item.dueDay || '');
+            const [showPartial, setShowPartial] = useState(false);
+            const [partialVal, setPartialVal] = useState('');
+            
+            const isCC = item.name.toLowerCase().includes('visa') || item.name.toLowerCase().includes('master');
+            const colorClass = { emerald: 'border-emerald-500', amber: 'border-amber-500', rose: 'border-rose-500' }[accent];
 
-            const addService = async (e) => {
-                e.preventDefault();
-                await supabaseInstance.from('services').insert([{ 
-                    user_id: userId, 
-                    name: form.name, 
-                    default_due_day: parseInt(form.day), 
-                    is_credit_card: form.isCC,
-                    active: true
-                }]);
-                setForm({ name: '', day: 10, isCC: false });
-                onRefresh();
-            };
-
-            const saveEdit = async (id) => {
-                await supabaseInstance.from('services').update({
-                    name: editForm.name,
-                    default_due_day: parseInt(editForm.default_due_day),
-                    is_credit_card: editForm.is_credit_card
-                }).eq('id', id);
-                setEditingId(null);
-                onRefresh();
-            };
-
-            const deleteService = async (id) => {
-                if(confirm("¿Borrar este servicio?")) {
-                    await supabaseInstance.from('services').delete().eq('id', id);
-                    onRefresh();
-                }
+            const saveEdit = () => {
+                const updates = { name: editName, amount: parseLocaleNumber(editAmount) };
+                if (item.type === 'daily') updates.date = new Date(editDate).toISOString();
+                if (item.type === 'recurring') updates.dueDay = parseInt(editDueDay) || 1;
+                onUpdate(item.id, updates);
+                setIsEditing(false);
             };
 
             return (
-                <div className="p-4 pb-24 md:pt-10 max-w-2xl mx-auto fade-in">
-                    <h2 className="text-xl font-bold mb-4">Configurar Servicios</h2>
-                    
-                    <form onSubmit={addService} className="card p-4 mb-6 grid gap-4 bg-blue-50 border border-blue-100">
-                        <h3 className="text-sm font-bold text-blue-800 uppercase">Nuevo Servicio</h3>
-                        <input type="text" placeholder="Nombre (ej: Netflix)" className="w-full p-2 border rounded" 
-                            value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-                        <div className="flex gap-4">
-                            <div className="flex-1">
-                                <label className="text-xs text-gray-500">Día vencimiento</label>
-                                <input type="number" min="1" max="31" className="w-full p-2 border rounded" 
-                                    value={form.day} onChange={e => setForm({...form, day: e.target.value})} />
-                            </div>
-                            <div className="flex items-center gap-2 pt-4">
-                                <input type="checkbox" checked={form.isCC} onChange={e => setForm({...form, isCC: e.target.checked})} className="w-5 h-5 rounded text-primary" />
-                                <label className="text-sm font-medium">Es Tarjeta de Crédito</label>
+                <div className={`bg-white p-6 rounded-[2.2rem] border-l-[10px] ${item.paid && item.type !== 'income' ? 'border-emerald-500 opacity-60' : colorClass} shadow-sm space-y-4 animate-fade-in hover:shadow-md transition-shadow`}>
+                    <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                                <div className="space-y-3">
+                                    <input className="w-full text-[11px] font-black uppercase p-2 border-b border-slate-200 outline-none focus:border-slate-900" value={editName} onChange={e=>setEditName(e.target.value)} autoFocus />
+                                    <div className="flex gap-2">
+                                        <input className="flex-1 text-2xl font-black p-2 border-b border-slate-200 outline-none focus:border-slate-900" value={editAmount} onChange={e=>setEditAmount(e.target.value)} />
+                                        {item.type === 'recurring' && <input type="number" className="w-16 text-lg font-black p-2 border-b border-slate-200 outline-none focus:border-slate-900" value={editDueDay} onChange={e=>setEditDueDay(e.target.value)} title="Día de vto" />}
+                                    </div>
+                                    {item.type === 'daily' && <input type="date" className="w-full text-xs font-black p-2 border border-slate-100 rounded-xl" value={editDate} onChange={e=>setEditDate(e.target.value)} />}
+                                    <div className="flex gap-2 pt-2">
+                                        <button onClick={saveEdit} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase">Guardar</button>
+                                        <button onClick={()=>setIsEditing(false)} className="bg-slate-100 text-slate-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase">Cancelar</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div onClick={() => setIsEditing(true)} className="cursor-text">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase truncate">{item.name}</span>
+                                        <span className="text-[9px] font-black bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100 text-slate-400 uppercase">{item.category}</span>
+                                    </div>
+                                    <p className="text-2xl font-black text-slate-900 tracking-tighter">{formatCurrency(item.amount)}</p>
+                                    <div className="flex gap-2 mt-2">
+                                        {item.type === 'recurring' && <span className="text-[9px] font-black text-amber-500 uppercase bg-amber-50 px-2 py-0.5 rounded border border-amber-100">Vence Día {item.dueDay || '---'}</span>}
+                                        {item.type === 'daily' && <span className="text-[9px] font-black text-slate-400 uppercase bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{new Date(item.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' })}</span>}
+                                    </div>
+                                </div>
+                            )}
+                            {item.paid && item.paymentType === 'partial' && <p className="text-[10px] font-black text-amber-500 uppercase mt-3 italic flex items-center gap-1"><span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> Abonado: {formatCurrency(item.paidAmount)}</p>}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                            {item.type !== 'income' && (
+                                <div className="flex gap-1">
+                                    {!item.paid ? (
+                                        <>
+                                            <button onClick={() => onToggle(item)} className="p-3.5 rounded-2xl border border-slate-100 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 transition-all shadow-sm"><Icons.Check /></button>
+                                            {isCC && <button onClick={() => setShowPartial(!showPartial)} className="p-3.5 rounded-2xl border border-slate-100 text-slate-400 font-black text-xs hover:bg-amber-50 transition-all shadow-sm">P</button>}
+                                        </>
+                                    ) : <button onClick={() => onToggle(item)} className="p-3.5 rounded-2xl bg-emerald-500 text-white shadow-lg scale-105 transition-all"><Icons.Check /></button>}
+                                </div>
+                            )}
+                            <button onClick={() => onDelete(item.id)} className="p-3.5 rounded-2xl border border-slate-100 text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all shadow-sm"><Icons.Trash /></button>
+                        </div>
+                    </div>
+                    {showPartial && !item.paid && (
+                        <div className="flex gap-2 items-end p-4 bg-amber-50/50 rounded-3xl border border-amber-100/50 animate-fade-in">
+                            <input type="text" className="flex-1 p-3 bg-white border border-amber-200 rounded-xl text-xs font-black outline-none shadow-sm" placeholder="Monto parcial..." value={partialVal} onChange={e => setPartialVal(e.target.value)} />
+                            <button onClick={() => {onToggle(item, 'partial', parseLocaleNumber(partialVal)); setShowPartial(false);}} className="bg-amber-500 text-white px-5 py-3 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-amber-600 transition-all">Confirmar</button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const AnalysisView = ({ currentMonthItems, stats, isSmall }) => {
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+            const byCategory = useMemo(() => {
+                const cats = {};
+                currentMonthItems.forEach(i => {
+                    if (i.type === 'income') return;
+                    const val = i.paymentType === 'partial' ? (parseFloat(i.paidAmount) || 0) : (parseFloat(i.amount) || 0);
+                    cats[i.category || 'General'] = (cats[i.category || 'General'] || 0) + val;
+                });
+                return Object.entries(cats).sort((a,b) => b[1] - a[1]);
+            }, [currentMonthItems]);
+
+            useEffect(() => {
+                if (typeof Chart === 'undefined' || !chartRef.current) return;
+                if (chartInstance.current) chartInstance.current.destroy();
+                const ctx = chartRef.current.getContext('2d');
+                chartInstance.current = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: byCategory.map(c => c[0]),
+                        datasets: [{ 
+                            data: byCategory.map(c => c[1]), 
+                            backgroundColor: ['#0f172a', '#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9'], 
+                            borderWidth: 0,
+                            hoverOffset: 10
+                        }]
+                    },
+                    options: { 
+                        cutout: isSmall ? '85%' : '75%', 
+                        plugins: { legend: { display: false } }, 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        animation: { animateRotate: true, animateScale: true }
+                    }
+                });
+                return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+            }, [byCategory, isSmall]);
+
+            if (isSmall) {
+                return (
+                    <div className="flex items-center gap-8 bg-slate-900/5 p-6 rounded-[2.5rem] border border-slate-100">
+                        <div className="relative w-32 h-32 shrink-0">
+                            <canvas ref={chartRef}></canvas>
+                        </div>
+                        <div className="flex-1 space-y-2 max-h-32 overflow-y-auto no-scrollbar">
+                            {byCategory.slice(0, 4).map(([cat, amount]) => (
+                                <div key={cat} className="flex justify-between items-center text-[10px] font-black uppercase">
+                                    <span className="text-slate-400">{cat}</span>
+                                    <span className="text-slate-900">{formatCurrency(amount)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="bg-white p-8 md:p-12 rounded-[3rem] shadow-sm border border-slate-100 md:grid md:grid-cols-2 md:gap-12 items-center">
+                    <div className="flex flex-col items-center mb-8 md:mb-0">
+                        <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-8">Egresos por Categoría</h3>
+                        <div className="relative w-64 h-64 md:w-80 md:h-80">
+                            <canvas ref={chartRef}></canvas>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                <p className="text-[10px] font-black text-slate-400 uppercase">Total Mes</p>
+                                <p className="text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(stats.totalSpent)}</p>
                             </div>
                         </div>
-                        <button className="bg-primary text-white py-2 rounded font-medium hover:bg-blue-600 transition">Agregar</button>
-                    </form>
-
-                    <div className="space-y-3">
-                        {services.map(s => (
-                            <div key={s.id} className="card p-4 border-l-4 border-primary">
-                                {editingId === s.id ? (
-                                    <div className="flex flex-col gap-3">
-                                        <input type="text" className="border p-2 rounded w-full" value={editForm.name} onChange={e=>setEditForm({...editForm, name: e.target.value})} />
-                                        <div className="flex gap-4 items-center">
-                                            <input type="number" className="border p-1 rounded w-20" value={editForm.default_due_day} onChange={e=>setEditForm({...editForm, default_due_day: e.target.value})} />
-                                            <div className="flex items-center gap-2">
-                                                <input type="checkbox" checked={editForm.is_credit_card} onChange={e=>setEditForm({...editForm, is_credit_card: e.target.checked})} />
-                                                <span className="text-sm">Tarjeta</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2 justify-end">
-                                            <button onClick={()=>setEditingId(null)} className="text-gray-500 text-sm px-3">Cancelar</button>
-                                            <button onClick={()=>saveEdit(s.id)} className="bg-green-600 text-white px-3 py-1 rounded text-sm flex items-center gap-1"><IconSave /> Guardar</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <h3 className="font-bold">{s.name}</h3>
-                                            <p className="text-xs text-gray-500">Vence día {s.default_due_day} {s.is_credit_card ? '(Tarjeta)' : ''}</p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button onClick={() => { setEditingId(s.id); setEditForm({name:s.name, default_due_day:s.default_due_day, is_credit_card:s.is_credit_card}); }} className="text-gray-400 hover:text-blue-500 p-2"><IconEdit /></button>
-                                            <button onClick={() => deleteService(s.id)} className="text-gray-400 hover:text-danger p-2"><IconTrash /></button>
-                                        </div>
-                                    </div>
-                                )}
+                    </div>
+                    <div className="w-full space-y-4">
+                        {byCategory.length === 0 ? (
+                            <p className="text-sm text-slate-400 italic text-center">Sin datos registrados.</p>
+                        ) : byCategory.map(([cat, amount]) => (
+                            <div key={cat} className="space-y-2">
+                                <div className="flex justify-between items-center text-[11px] font-black uppercase">
+                                    <span className="text-slate-500">{cat}</span>
+                                    <span className="text-slate-900">{formatCurrency(amount)}</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                    <div className="h-full bg-slate-900 transition-all duration-1000" style={{ width: `${(amount / (stats.totalSpent || 1)) * 100}%` }}></div>
+                                </div>
                             </div>
                         ))}
                     </div>
-                </div>
-            );
-        };
-
-        const PaymentItem = ({ item, onUpdate, onDeletePayment }) => {
-            const [inputValue, setInputValue] = useState('');
-
-            useEffect(() => {
-                const initialVal = item.is_paid ? item.amount_paid : item.amount_due;
-                setInputValue(initialVal ? parseFloat(initialVal).toString() : '0');
-            }, [item.amount_due, item.amount_paid, item.is_paid]);
-
-            const handleBlur = async () => {
-                const val = parseFloat(inputValue) || 0;
-                if (!item.is_paid && val !== parseFloat(item.amount_due)) {
-                    await onUpdate(item, { amount_due: val });
-                }
-            };
-
-            const togglePaid = async () => {
-                if (item.is_paid) {
-                    await onDeletePayment(item.payment_id);
-                } else {
-                    const amountToPay = parseFloat(inputValue) || 0;
-                    await onUpdate(item, { 
-                        is_paid: true, 
-                        amount_paid: amountToPay
-                    });
-                }
-            };
-
-            let borderColor = 'border-primary';
-            let opacity = 'opacity-100';
-            if (item.is_paid) borderColor = 'border-success', opacity = 'opacity-70';
-            else if (item.skipped) borderColor = 'border-gray-300', opacity = 'opacity-50';
-            else if (item.isOverdue) borderColor = 'border-danger';
-
-            return (
-                <div className={`card p-4 border-l-4 transition-all ${borderColor} ${opacity}`}>
-                    <div className="flex justify-between mb-2">
-                        <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                                <h3 className={`font-bold text-gray-800 ${item.skipped ? 'line-through text-gray-400' : ''}`}>
-                                    {item.name}
-                                </h3>
-                                {item.isOverdue && (
-                                    <span className="bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded animate-pulse">
-                                        VENCIDO
-                                    </span>
-                                )}
-                            </div>
-                            <p className="text-xs text-gray-500">Vence: Día {item.default_due_day}</p>
-                            {item.carry_over_amount > 0 && (
-                                <p className="text-xs text-orange-500 font-bold">Deuda arrastrada: {formatCurrency(item.carry_over_amount)}</p>
-                            )}
-                        </div>
-                        <button onClick={() => onUpdate(item, { skipped: !item.skipped })} className="text-xs bg-gray-100 px-2 py-1 rounded h-fit hover:bg-gray-200">
-                            {item.skipped ? 'Activar' : 'Saltar'}
-                        </button>
-                    </div>
-                    
-                    {!item.skipped && (
-                        <div className="flex items-end gap-4 mt-1">
-                            <div className="flex-1">
-                                <div className={`flex items-center border-b ${item.isOverdue && !item.is_paid ? 'border-danger' : 'border-gray-200'} focus-within:border-primary transition-colors`}>
-                                    <span className={`text-xl font-bold mr-1 ${item.isOverdue && !item.is_paid ? 'text-danger' : 'text-gray-600'}`}>$</span>
-                                    <input 
-                                        type="number" 
-                                        step="0.01"
-                                        className={`w-full text-xl font-bold outline-none bg-transparent py-1 ${item.isOverdue && !item.is_paid ? 'text-danger' : 'text-gray-800'}`}
-                                        value={inputValue}
-                                        onChange={(e) => setInputValue(e.target.value)}
-                                        onBlur={handleBlur}
-                                        onFocus={(e) => { 
-                                            if (parseFloat(inputValue) === 0) setInputValue(''); 
-                                        }}
-                                        disabled={item.is_paid}
-                                    />
-                                </div>
-                            </div>
-                            <button onClick={togglePaid} className="transition-transform active:scale-90 shrink-0">
-                                {item.is_paid ? <IconCheck /> : (
-                                    <div className={item.isOverdue ? 'text-danger hover:text-red-700' : ''}>
-                                        <IconCircle />
-                                    </div>
-                                )}
-                            </button>
-                        </div>
-                    )}
-                    
-                    {item.is_paid && item.is_credit_card && (parseFloat(item.amount_due) - parseFloat(item.amount_paid)) > 0.01 && (
-                         <p className="text-xs text-red-500 font-medium mt-2">
-                             Restan {formatCurrency(parseFloat(item.amount_due) - parseFloat(item.amount_paid))} para el próximo mes.
-                         </p>
-                    )}
-                </div>
-            );
-        };
-
-        const DashboardView = ({ userId, supabaseInstance, services }) => {
-            const [date, setDate] = useState(new Date());
-            const [items, setItems] = useState([]);
-            const [loading, setLoading] = useState(true);
-
-            useEffect(() => { loadData() }, [date, services]); 
-
-            const loadData = async () => {
-                setLoading(true);
-                const today = new Date();
-                const currentDay = today.getDate();
-                const currentMonth = today.getMonth() + 1;
-                const currentYear = today.getFullYear();
-
-                const viewMonth = date.getMonth() + 1;
-                const viewYear = date.getFullYear();
-
-                let prevMonth = viewMonth - 1;
-                let prevYear = viewYear;
-                if (prevMonth === 0) { prevMonth = 12; prevYear = viewYear - 1; }
-
-                const { data: payments } = await supabaseInstance.from('payments').select('*').eq('month', viewMonth).eq('year', viewYear);
-                const { data: prevPayments } = await supabaseInstance.from('payments').select('*').eq('month', prevMonth).eq('year', prevYear);
-
-                if (services) {
-                    const merged = services.map(svc => {
-                        const pay = payments?.find(p => p.service_id === svc.id);
-                        const prevPay = prevPayments?.find(p => p.service_id === svc.id);
-                        
-                        let carryOver = 0;
-                        if (svc.is_credit_card && prevPay && prevPay.is_paid) {
-                            carryOver = Math.max(0, (parseFloat(prevPay.amount_due) || 0) - (parseFloat(prevPay.amount_paid) || 0));
-                        }
-
-                        let amountDue = parseFloat(pay?.amount_due || 0);
-                        if (!pay) {
-                            amountDue = carryOver;
-                        }
-
-                        const isOverdue = !pay?.is_paid && !pay?.skipped && (
-                            viewYear < currentYear || 
-                            (viewYear === currentYear && viewMonth < currentMonth) ||
-                            (viewYear === currentYear && viewMonth === currentMonth && currentDay > svc.default_due_day)
-                        );
-
-                        return {
-                            ...svc,
-                            payment_id: pay?.id,
-                            amount_due: amountDue,
-                            amount_paid: pay?.amount_paid || 0,
-                            is_paid: pay?.is_paid || false,
-                            skipped: pay?.skipped || false,
-                            carry_over_amount: carryOver,
-                            isOverdue: isOverdue
-                        };
-                    });
-                    
-                    const sorted = merged.sort((a, b) => {
-                        if (a.is_paid !== b.is_paid) return a.is_paid ? 1 : -1;
-                        return a.default_due_day - b.default_due_day;
-                    });
-                    setItems(sorted);
-                }
-                setLoading(false);
-            };
-
-            const updatePayment = async (item, updates) => {
-                const month = date.getMonth() + 1;
-                const year = date.getFullYear();
-                const payload = {
-                    service_id: item.id,
-                    user_id: userId,
-                    month,
-                    year,
-                    amount_due: updates.amount_due !== undefined ? updates.amount_due : item.amount_due,
-                    amount_paid: updates.amount_paid !== undefined ? updates.amount_paid : item.amount_paid,
-                    is_paid: updates.is_paid !== undefined ? updates.is_paid : item.is_paid,
-                    skipped: updates.skipped !== undefined ? updates.skipped : item.skipped,
-                };
-
-                if (item.payment_id) {
-                    await supabaseInstance.from('payments').update(payload).eq('id', item.payment_id);
-                } else {
-                    await supabaseInstance.from('payments').insert(payload);
-                }
-                loadData();
-            };
-
-            const deletePayment = async (id) => {
-                await supabaseInstance.from('payments').delete().eq('id', id);
-                loadData();
-            };
-
-            const totalPaid = items.filter(i => !i.skipped && i.is_paid).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0);
-            const remaining = items.filter(i => !i.skipped && !i.is_paid).reduce((acc, c) => acc + parseFloat(c.amount_due), 0);
-
-            const changeMonth = (offset) => {
-                const newDate = new Date(date);
-                newDate.setMonth(newDate.getMonth() + offset);
-                setDate(newDate);
-            };
-
-            return (
-                <div className="p-4 pb-24 md:pt-10 max-w-4xl mx-auto fade-in">
-                    <div className="flex justify-between items-center mb-6 card p-3">
-                        <button onClick={() => changeMonth(-1)} className="p-2 font-bold text-xl hover:bg-gray-100 rounded transition-colors">&lt;</button>
-                        <h2 className="text-xl font-bold capitalize">{date.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}</h2>
-                        <button onClick={() => changeMonth(1)} className="p-2 font-bold text-xl hover:bg-gray-100 rounded transition-colors">&gt;</button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-6 text-center">
-                        <div className="bg-green-100 p-4 rounded-xl text-green-800 shadow-sm border border-green-200">
-                            <div className="text-[10px] uppercase font-bold tracking-wider mb-1">Pagado</div>
-                            <div className="font-bold text-xl">{formatCurrency(totalPaid)}</div>
-                        </div>
-                        <div className="bg-red-100 p-4 rounded-xl text-red-800 shadow-sm border border-red-200">
-                            <div className="text-[10px] uppercase font-bold tracking-wider mb-1">Resta Pagar</div>
-                            <div className="font-bold text-xl">{formatCurrency(remaining)}</div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        {loading ? (
-                            <div className="text-center p-8 text-gray-400">Cargando pagos...</div>
-                        ) : (
-                            items.map(item => (
-                                <PaymentItem 
-                                    key={item.id} 
-                                    item={item} 
-                                    onUpdate={updatePayment} 
-                                    onDeletePayment={deletePayment}
-                                />
-                            ))
-                        )}
-                    </div>
-                </div>
-            );
-        };
-
-        const StatsView = ({ supabaseInstance, services }) => {
-            const [annualData, setAnnualData] = useState([]);
-            const [pieData, setPieData] = useState([]);
-            const [allYearPayments, setAllYearPayments] = useState([]);
-            const [selectedServiceId, setSelectedServiceId] = useState('');
-            const [serviceAnnualData, setServiceAnnualData] = useState([]);
-            const [loading, setLoading] = useState(true);
-
-            useEffect(() => {
-                const calc = async () => {
-                    setLoading(true);
-                    const now = new Date();
-                    const year = now.getFullYear();
-                    const month = now.getMonth() + 1;
-
-                    const { data: payments } = await supabaseInstance.from('payments')
-                        .select('month, amount_paid, service_id')
-                        .eq('year', year)
-                        .eq('is_paid', true);
-                    
-                    setAllYearPayments(payments || []);
-
-                    const chartData = Array.from({length: 12}, (_, i) => {
-                        const m = i + 1;
-                        const total = payments?.filter(p => p.month === m).reduce((acc, c) => acc + parseFloat(c.amount_paid), 0) || 0;
-                        return { name: new Date(year, i, 1).toLocaleString('es-ES', {month:'short'}), total };
-                    });
-                    setAnnualData(chartData);
-
-                    const { data: currentMonthPayments } = await supabaseInstance.from('payments').select('amount_paid, service_id').eq('year', year).eq('month', month).eq('is_paid', true);
-                    
-                    if (currentMonthPayments && services.length > 0) {
-                        const distribution = currentMonthPayments.map(p => {
-                            const svc = services.find(s => s.id === p.service_id);
-                            return {
-                                name: svc ? svc.name : 'Desconocido',
-                                value: parseFloat(p.amount_paid)
-                            };
-                        }).filter(p => p.value > 0);
-                        setPieData(distribution);
-                        
-                        // Seleccionar el primer servicio por defecto si no hay uno
-                        if (!selectedServiceId && services.length > 0) {
-                            setSelectedServiceId(services[0].id);
-                        }
-                    }
-                    setLoading(false);
-                };
-                calc();
-            }, [services]);
-
-            // Efecto para calcular la evolución del servicio seleccionado
-            useEffect(() => {
-                if (!selectedServiceId || allYearPayments.length === 0) return;
-                
-                const currentYear = new Date().getFullYear();
-                const chartData = Array.from({length: 12}, (_, i) => {
-                    const m = i + 1;
-                    const total = allYearPayments
-                        .filter(p => p.month === m && String(p.service_id) === String(selectedServiceId))
-                        .reduce((acc, c) => acc + parseFloat(c.amount_paid), 0) || 0;
-                    return { name: new Date(currentYear, i, 1).toLocaleString('es-ES', {month:'short'}), total };
-                });
-                setServiceAnnualData(chartData);
-            }, [selectedServiceId, allYearPayments]);
-
-            if (loading) return <div className="text-center p-10 text-gray-500">Cargando estadísticas...</div>;
-
-            return (
-                <div className="p-4 pb-24 md:pt-10 max-w-4xl mx-auto space-y-8 fade-in">
-                    <h2 className="text-xl font-bold">Resumen de Gastos</h2>
-
-                    {/* Nueva sección: Evolución por Servicio Individual */}
-                    <div className="card p-6 border-l-4 border-success">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                            <h3 className="text-sm font-bold text-gray-400 uppercase">Evolución por Servicio</h3>
-                            <select 
-                                className="p-2 border rounded-lg bg-gray-50 text-sm outline-none focus:ring-2 focus:ring-primary"
-                                value={selectedServiceId}
-                                onChange={(e) => setSelectedServiceId(e.target.value)}
-                            >
-                                <option value="">Seleccionar servicio...</option>
-                                {services.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        {selectedServiceId ? (
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={serviceAnnualData}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                        <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                        <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val/1000}k`} />
-                                        <Tooltip formatter={(val) => [formatCurrency(val), 'Pagado']} />
-                                        <Bar dataKey="total" fill="#10b981" radius={[6, 6, 0, 0]} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        ) : (
-                            <div className="h-[100px] flex items-center justify-center text-gray-400">
-                                Selecciona un servicio para ver su evolución.
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="card p-6">
-                        <h3 className="text-sm font-bold text-gray-400 uppercase mb-6">Distribución Mes Actual</h3>
-                        {pieData.length > 0 ? (
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={pieData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                            label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                        >
-                                            {pieData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip formatter={(val) => formatCurrency(val)} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                        ) : (
-                            <div className="h-[100px] flex items-center justify-center text-gray-400">
-                                No hay pagos registrados este mes para mostrar distribución.
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="card p-6">
-                        <h3 className="text-sm font-bold text-gray-400 uppercase mb-6">Gasto Total Mensual ({new Date().getFullYear()})</h3>
-                        <div className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={annualData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `$${val/1000}k`} />
-                                    <Tooltip formatter={(val) => [formatCurrency(val), 'Total']} />
-                                    <Bar dataKey="total" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const App = () => {
-            const [supabaseInstance, setSupabaseInstance] = useState(null);
-            const [session, setSession] = useState(null);
-            const [view, setView] = useState('dashboard');
-            const [services, setServices] = useState([]);
-
-            const fetchServices = async (client, userId) => {
-                if (!userId) return;
-                const { data } = await client.from('services')
-                    .select('*')
-                    .eq('active', true)
-                    .order('created_at');
-                setServices(data || []);
-            };
-
-            useEffect(() => {
-                const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-                setSupabaseInstance(client);
-                
-                client.auth.getSession().then(({ data: { session } }) => {
-                    setSession(session);
-                    if (session) fetchServices(client, session.user.id);
-                });
-
-                const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-                    setSession(session);
-                    if (session) fetchServices(client, session.user.id);
-                });
-                return () => subscription.unsubscribe();
-            }, []);
-
-            if (!supabaseInstance) return <div className="p-10 text-center text-gray-500">Iniciando aplicación...</div>;
-            if (!session) return <AuthView supabaseInstance={supabaseInstance} />;
-
-            return (
-                <div className="min-h-screen">
-                    <main>
-                        {view === 'dashboard' && (
-                            <DashboardView 
-                                userId={session.user.id} 
-                                supabaseInstance={supabaseInstance} 
-                                services={services}
-                            />
-                        )}
-                        {view === 'services' && (
-                            <ServicesView 
-                                userId={session.user.id} 
-                                supabaseInstance={supabaseInstance} 
-                                services={services}
-                                onRefresh={() => fetchServices(supabaseInstance, session.user.id)}
-                            />
-                        )}
-                        {view === 'stats' && <StatsView supabaseInstance={supabaseInstance} services={services} />}
-                    </main>
-
-                    <nav className="fixed bottom-0 w-full bg-white border-t z-50">
-                        <div className="flex justify-around items-center h-16 max-w-4xl mx-auto">
-                            <button onClick={() => setView('dashboard')} className={`flex flex-col items-center p-2 transition-colors ${view==='dashboard'?'text-primary font-bold':'text-gray-400'}`}>
-                                <IconDashboard /><span className="text-[10px]">Pagos</span>
-                            </button>
-                            <button onClick={() => setView('services')} className={`flex flex-col items-center p-2 transition-colors ${view==='services'?'text-primary font-bold':'text-gray-400'}`}>
-                                <IconServices /><span className="text-[10px]">Servicios</span>
-                            </button>
-                            <button onClick={() => setView('stats')} className={`flex flex-col items-center p-2 transition-colors ${view==='stats'?'text-primary font-bold':'text-gray-400'}`}>
-                                <IconStats /><span className="text-[10px]">Gráficos</span>
-                            </button>
-                            <button onClick={() => supabaseInstance.auth.signOut()} className="flex flex-col items-center p-2 text-gray-400 hover:text-red-500 transition-colors">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                <span className="text-[10px]">Salir</span>
-                            </button>
-                        </div>
-                    </nav>
                 </div>
             );
         };
